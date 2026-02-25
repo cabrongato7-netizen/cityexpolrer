@@ -1,0 +1,2536 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="theme-color" content="#050d1a">
+<meta name="msapplication-TileColor" content="#050d1a">
+<meta name="msapplication-navbutton-color" content="#050d1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="City Explorer">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="Discover venues, transit & attractions near you — voice-powered city exploration">
+<meta name="keywords" content="city explorer, places, restaurants, transit, maps, travel">
+<meta property="og:title" content="City Explorer">
+<meta property="og:description" content="Discover places near you with voice search and interactive maps">
+<meta property="og:type" content="website">
+<title>City Explorer — Discover Your World</title>
+<link rel="manifest" href="manifest.json">
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="anonymous">
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Cabinet+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+<!-- Fallback font stack defined in CSS -->
+
+<style>
+/* ═══════════════════════════════════════════════
+   CROSS-PLATFORM CSS RESET & BASE
+═══════════════════════════════════════════════ */
+*, *::before, *::after {
+  margin: 0; padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+:root {
+  /* Colors */
+  --bg:        #050d1a;
+  --bg2:       #0b1628;
+  --bg3:       #0f1e35;
+  --card:      #112035;
+  --card2:     #162840;
+  --border:    rgba(255,255,255,0.06);
+  --border2:   rgba(255,255,255,0.12);
+  --text:      #e8f0ff;
+  --text2:     #7a94bb;
+  --text3:     #3d5070;
+  --primary:   #2563eb;
+  --primary-l: #3b82f6;
+  --primary-g: rgba(37,99,235,0.2);
+  --cyan:      #06b6d4;
+  --teal:      #14b8a6;
+  --green:     #10b981;
+  --red:       #ef4444;
+  --amber:     #f59e0b;
+  --gold:      #fbbf24;
+  --violet:    #8b5cf6;
+  /* Spacing - safe areas */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  /* Layout */
+  --nav-h:    62px;
+  --hdr-h:    56px;
+  --radius:   14px;
+  --radius-s: 8px;
+  /* Fonts with safe fallbacks for all platforms */
+  --font-display: 'Clash Display', 'SF Pro Display', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --font-body:    'Cabinet Grotesk', 'SF Pro Text', -apple-system, 'Segoe UI', system-ui, sans-serif;
+}
+
+html {
+  height: 100%;
+  height: -webkit-fill-available;
+  scroll-behavior: smooth;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
+body {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+button { font-family: inherit; cursor: pointer; border: none; outline: none; background: none; -webkit-appearance: none; appearance: none; }
+input, textarea { font-family: inherit; outline: none; -webkit-appearance: none; appearance: none; border-radius: 0; }
+a { color: inherit; text-decoration: none; }
+img { display: block; max-width: 100%; }
+
+/* ═══════════════════════════════════════════════
+   DESKTOP LAYOUT — sidebar nav for large screens
+═══════════════════════════════════════════════ */
+@media (min-width: 768px) {
+  body { overflow: auto; }
+  #app {
+    display: grid !important;
+    grid-template-columns: 240px 1fr;
+    grid-template-rows: 1fr;
+    min-height: 100vh;
+    padding-top: 0 !important;
+  }
+  #bottom-nav { display: none !important; }
+  #sidebar { display: flex !important; }
+  .screen { min-height: 100vh; }
+  #voice-fab { bottom: 32px; right: 32px; }
+  #transcription { right: 100px; bottom: 32px; left: auto; max-width: 360px; }
+  #toast { left: 260px; right: 40px; bottom: 32px; }
+  .sheet .sheet-wrap { max-width: 480px; margin: 0 auto; }
+}
+@media (min-width: 1200px) {
+  #app { grid-template-columns: 280px 1fr; }
+  .screen { max-width: 900px; }
+  #screen-map .screen { max-width: 100%; }
+}
+
+/* ═══════════════════════════════════════════════
+   SIDEBAR (desktop only)
+═══════════════════════════════════════════════ */
+#sidebar {
+  display: none;
+  flex-direction: column;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  padding: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 50;
+}
+.sidebar-brand {
+  padding: 28px 24px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-brand-logo { font-size: 32px; margin-bottom: 8px; }
+.sidebar-brand-name {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary-l), var(--cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.sidebar-brand-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.sidebar-nav { padding: 12px 12px; flex: 1; }
+.sidebar-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; border-radius: var(--radius-s);
+  cursor: pointer; margin-bottom: 2px;
+  color: var(--text2); font-size: 14px; font-weight: 500;
+  transition: all 0.18s;
+}
+.sidebar-item:hover { background: var(--card); color: var(--text); }
+.sidebar-item.active { background: var(--primary-g); color: var(--primary-l); }
+.sidebar-item-icon { font-size: 18px; width: 22px; text-align: center; }
+.sidebar-footer {
+  padding: 16px 12px;
+  border-top: 1px solid var(--border);
+}
+.sidebar-install-btn {
+  width: 100%; padding: 10px 14px;
+  background: var(--primary-g);
+  border: 1px solid rgba(59,130,246,0.2);
+  border-radius: var(--radius-s);
+  color: var(--primary-l); font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; transition: all 0.18s;
+}
+.sidebar-install-btn:hover { background: var(--primary); color: #fff; }
+
+/* ═══════════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════════ */
+#app {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--sat);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+}
+.screen {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+.screen.active { display: flex; }
+
+/* ═══════════════════════════════════════════════
+   OFFLINE BANNER
+═══════════════════════════════════════════════ */
+#offline-banner {
+  display: none; align-items: center; justify-content: center;
+  gap: 6px; padding: 7px 16px;
+  background: var(--amber); color: #1a1000;
+  font-size: 12px; font-weight: 600;
+  position: relative; z-index: 200;
+}
+#offline-banner.show { display: flex; }
+
+/* ═══════════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════════ */
+.hdr {
+  height: var(--hdr-h); min-height: var(--hdr-h);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  position: relative; z-index: 10;
+  flex-shrink: 0;
+}
+@media (min-width: 768px) { .hdr { padding: 0 24px; } }
+.hdr-title {
+  font-family: var(--font-display);
+  font-size: 17px; font-weight: 700;
+  display: flex; align-items: center; gap: 8px;
+}
+.hdr-actions { display: flex; gap: 4px; }
+.icon-btn {
+  width: 38px; height: 38px; border-radius: var(--radius-s);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text2); font-size: 18px;
+  transition: all 0.15s; cursor: pointer;
+}
+.icon-btn:hover { background: var(--card); color: var(--text); }
+.icon-btn:active { transform: scale(0.92); background: var(--card2); }
+
+/* ═══════════════════════════════════════════════
+   BOTTOM NAV (mobile)
+═══════════════════════════════════════════════ */
+#bottom-nav {
+  height: calc(var(--nav-h) + var(--sab));
+  min-height: calc(var(--nav-h) + var(--sab));
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: flex-start;
+  padding-top: 4px;
+  padding-bottom: var(--sab);
+  position: relative; z-index: 100;
+  flex-shrink: 0;
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+  padding: 6px 2px; cursor: pointer;
+  color: var(--text3); transition: all 0.18s;
+  -webkit-user-select: none; user-select: none;
+}
+.nav-item.active { color: var(--primary-l); }
+.nav-icon { font-size: 20px; line-height: 1; transition: transform 0.2s; }
+.nav-item.active .nav-icon { transform: translateY(-2px); }
+.nav-label { font-size: 10px; font-weight: 600; white-space: nowrap; letter-spacing: 0.2px; }
+
+/* ═══════════════════════════════════════════════
+   SCROLL AREA
+═══════════════════════════════════════════════ */
+.scroll-area {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+.scroll-area::-webkit-scrollbar { width: 0; }
+
+/* ═══════════════════════════════════════════════
+   ██  HOME SCREEN  ██
+═══════════════════════════════════════════════ */
+#screen-home {
+  background: var(--bg);
+  overflow: hidden;
+}
+#screen-home .scroll-area {
+  overflow-y: auto;
+}
+
+/* === HERO === */
+.hero {
+  position: relative;
+  min-height: 100svh;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  padding-bottom: 40px;
+}
+.hero-canvas {
+  position: absolute; inset: 0;
+  background: var(--bg);
+}
+/* Animated gradient orbs */
+.orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(80px); opacity: 0.35;
+  animation: orb-drift 12s ease-in-out infinite;
+  pointer-events: none;
+}
+.orb-1 { width: 500px; height: 500px; top: -150px; left: -150px; background: radial-gradient(circle, #1d4ed8, transparent); animation-delay: 0s; }
+.orb-2 { width: 400px; height: 400px; top: 20%; right: -100px; background: radial-gradient(circle, #0891b2, transparent); animation-delay: -4s; }
+.orb-3 { width: 350px; height: 350px; bottom: 10%; left: 20%; background: radial-gradient(circle, #7c3aed, transparent); animation-delay: -8s; }
+@keyframes orb-drift {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  33% { transform: translate(30px,-20px) scale(1.08); }
+  66% { transform: translate(-20px,30px) scale(0.95); }
+}
+
+/* Grid overlay */
+.hero-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 100% 80% at 50% 0%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 100% 80% at 50% 0%, black 40%, transparent 100%);
+}
+
+/* Floating location dots */
+.hero-dots { position: absolute; inset: 0; pointer-events: none; }
+.dot {
+  position: absolute; border-radius: 50%;
+  animation: dot-float var(--dur, 6s) ease-in-out infinite var(--del, 0s);
+}
+.dot::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%;
+  border: 1px solid currentColor; opacity: 0.3;
+  animation: dot-ring 2s ease-out infinite var(--del, 0s);
+}
+@keyframes dot-float {
+  0%, 100% { transform: translate(0,0); opacity: 0.7; }
+  50% { transform: translate(var(--dx,5px), var(--dy,-8px)); opacity: 1; }
+}
+@keyframes dot-ring {
+  0% { transform: scale(1); opacity: 0.4; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+.hero-content {
+  position: relative; z-index: 2;
+  padding: 0 24px 0;
+}
+@media (min-width: 768px) { .hero-content { padding: 0 60px 0; max-width: 700px; } }
+@media (min-width: 1200px) { .hero-content { max-width: 800px; } }
+
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 20px;
+  background: rgba(37,99,235,0.12);
+  border: 1px solid rgba(59,130,246,0.25);
+  font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+  color: var(--cyan); text-transform: uppercase;
+  margin-bottom: 20px;
+  animation: fade-up 0.6s ease both;
+}
+.hero-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--cyan);
+  animation: blink 1.5s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 8vw, 72px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -1.5px;
+  margin-bottom: 20px;
+  animation: fade-up 0.6s 0.1s ease both;
+}
+.hero-title-line1 { display: block; color: var(--text); }
+.hero-title-line2 {
+  display: block;
+  background: linear-gradient(135deg, var(--primary-l) 0%, var(--cyan) 50%, var(--teal) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-sub {
+  font-size: clamp(15px, 2.5vw, 18px);
+  color: var(--text2); line-height: 1.65;
+  max-width: 520px; margin-bottom: 36px;
+  animation: fade-up 0.6s 0.2s ease both;
+}
+
+/* Hero search bar */
+.hero-search {
+  position: relative; max-width: 540px;
+  margin-bottom: 32px;
+  animation: fade-up 0.6s 0.3s ease both;
+}
+.hero-search-inner {
+  display: flex; align-items: center;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 0 16px;
+  height: 56px;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.hero-search-inner:focus-within {
+  border-color: var(--primary-l);
+  box-shadow: 0 0 0 3px var(--primary-g);
+}
+.hero-search-icon { font-size: 20px; margin-right: 12px; flex-shrink: 0; color: var(--text2); }
+.hero-search-input {
+  flex: 1; background: transparent; border: none;
+  color: var(--text); font-size: 15px;
+  font-family: var(--font-body);
+}
+.hero-search-input::placeholder { color: var(--text3); }
+.hero-search-voice {
+  width: 38px; height: 38px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text2); font-size: 18px;
+  cursor: pointer; flex-shrink: 0;
+  transition: all 0.15s;
+}
+.hero-search-voice:hover { background: var(--card); color: var(--text); }
+.hero-search-voice.listening { color: var(--red); animation: mic-pulse 0.7s ease infinite; }
+.hero-search-btn {
+  height: 38px; padding: 0 18px;
+  background: var(--primary); color: #fff;
+  border-radius: 10px; font-size: 14px; font-weight: 600;
+  cursor: pointer; flex-shrink: 0; margin-left: 8px;
+  transition: all 0.15s; white-space: nowrap;
+}
+.hero-search-btn:hover { background: var(--primary-l); transform: translateY(-1px); }
+.hero-search-btn:active { transform: scale(0.96); }
+
+/* Hero CTA buttons */
+.hero-actions {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  animation: fade-up 0.6s 0.4s ease both;
+}
+.hero-btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 13px 24px; border-radius: var(--radius);
+  background: var(--primary); color: #fff;
+  font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: all 0.18s;
+  border: none;
+}
+.hero-btn-primary:hover { background: var(--primary-l); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(37,99,235,0.4); }
+.hero-btn-primary:active { transform: scale(0.97); }
+.hero-btn-ghost {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 22px; border-radius: var(--radius);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border2);
+  color: var(--text); font-size: 15px; font-weight: 500;
+  cursor: pointer; transition: all 0.18s;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.hero-btn-ghost:hover { background: rgba(255,255,255,0.1); transform: translateY(-1px); }
+.hero-btn-ghost:active { transform: scale(0.97); }
+
+/* Hero stats */
+.hero-stats {
+  position: relative; z-index: 2;
+  display: flex; gap: 0;
+  padding: 0 24px;
+  margin-top: 48px; margin-bottom: 0;
+  animation: fade-up 0.6s 0.5s ease both;
+}
+@media (min-width: 768px) { .hero-stats { padding: 0 60px; } }
+.hero-stat {
+  flex: 1; padding: 20px 16px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.hero-stat:not(:last-child) { border-right: 1px solid var(--border); }
+.hero-stat-num {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 4vw, 32px);
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary-l), var(--cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.hero-stat-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* === FEATURE CARDS === */
+.features-section {
+  padding: 60px 24px;
+  background: var(--bg2);
+}
+@media (min-width: 768px) { .features-section { padding: 80px 60px; } }
+.section-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--cyan);
+  margin-bottom: 16px;
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 4vw, 36px);
+  font-weight: 700; line-height: 1.15;
+  letter-spacing: -0.5px;
+  margin-bottom: 12px;
+}
+.section-sub {
+  font-size: 15px; color: var(--text2);
+  max-width: 480px; line-height: 1.65;
+  margin-bottom: 40px;
+}
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.feat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px;
+  cursor: pointer;
+  transition: all 0.22s;
+  position: relative; overflow: hidden;
+}
+.feat-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-color, var(--primary-l)), transparent);
+  opacity: 0; transition: opacity 0.3s;
+}
+.feat-card:hover { border-color: var(--border2); transform: translateY(-4px); box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+.feat-card:hover::before { opacity: 1; }
+.feat-card:active { transform: scale(0.98); }
+.feat-icon {
+  width: 52px; height: 52px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; margin-bottom: 16px;
+  background: var(--icon-bg, rgba(37,99,235,0.12));
+}
+.feat-title { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.feat-desc { font-size: 13px; color: var(--text2); line-height: 1.6; }
+.feat-arrow {
+  position: absolute; bottom: 20px; right: 20px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--icon-bg, rgba(37,99,235,0.12));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: var(--text2);
+  transition: all 0.2s;
+}
+.feat-card:hover .feat-arrow { background: var(--primary); color: #fff; transform: translate(2px, -2px); }
+
+/* === CATEGORY SHOWCASE === */
+.categories-section {
+  padding: 60px 24px;
+  background: var(--bg);
+}
+@media (min-width: 768px) { .categories-section { padding: 80px 60px; } }
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 32px;
+}
+@media (min-width: 480px) { .cat-grid { grid-template-columns: repeat(4, 1fr); gap: 12px; } }
+@media (min-width: 768px) { .cat-grid { grid-template-columns: repeat(6, 1fr); gap: 14px; } }
+.cat-item {
+  aspect-ratio: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; transition: all 0.2s;
+  padding: 12px 6px;
+}
+.cat-item:hover { border-color: var(--primary-l); background: var(--card2); transform: scale(1.05); }
+.cat-item:active { transform: scale(0.95); }
+.cat-item.active { border-color: var(--primary-l); background: rgba(37,99,235,0.15); }
+.cat-emoji { font-size: 26px; line-height: 1; }
+.cat-name { font-size: 11px; font-weight: 600; color: var(--text2); text-align: center; }
+.cat-item.active .cat-name { color: var(--primary-l); }
+
+/* === PLATFORM BADGES === */
+.platforms-section {
+  padding: 48px 24px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+@media (min-width: 768px) { .platforms-section { padding: 60px; } }
+.platforms-title { font-size: 13px; color: var(--text3); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 24px; }
+.platforms-row {
+  display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: center;
+  gap: 10px;
+}
+.platform-badge {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-radius: 30px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 13px; font-weight: 500; color: var(--text2);
+  transition: all 0.18s;
+}
+.platform-badge:hover { border-color: var(--border2); color: var(--text); background: var(--card2); }
+.platform-icon { font-size: 16px; }
+
+/* === HOW IT WORKS === */
+.how-section {
+  padding: 60px 24px;
+  background: var(--bg);
+}
+@media (min-width: 768px) { .how-section { padding: 80px 60px; } }
+.steps-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin-top: 40px;
+}
+@media (min-width: 600px) { .steps-row { grid-template-columns: repeat(3, 1fr); } }
+.step-card {
+  display: flex; flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px 24px;
+  position: relative;
+}
+.step-num {
+  font-family: var(--font-display);
+  font-size: 48px; font-weight: 700;
+  line-height: 1;
+  background: linear-gradient(135deg, rgba(37,99,235,0.4), rgba(6,182,212,0.2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 16px;
+}
+.step-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+.step-desc { font-size: 14px; color: var(--text2); line-height: 1.65; }
+.step-connector {
+  display: none;
+}
+@media (min-width: 600px) {
+  .step-card { position: relative; }
+  .step-card:not(:last-child)::after {
+    content: '→';
+    position: absolute; right: -18px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--text3); font-size: 20px; z-index: 1;
+  }
+}
+
+/* === INSTALL CTA === */
+.install-section {
+  padding: 60px 24px;
+  background: linear-gradient(135deg, var(--bg2) 0%, rgba(37,99,235,0.08) 100%);
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+@media (min-width: 768px) { .install-section { padding: 80px 60px; } }
+.install-devices {
+  display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: center;
+  gap: 16px; margin: 32px 0;
+}
+.install-device {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 16px 20px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; min-width: 80px;
+  transition: all 0.18s;
+}
+.install-device:hover { border-color: var(--primary-l); transform: translateY(-3px); }
+.install-device-icon { font-size: 28px; }
+.install-device-name { font-size: 11px; font-weight: 600; color: var(--text2); }
+.install-cta-btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 16px 36px; border-radius: 14px;
+  background: linear-gradient(135deg, var(--primary), var(--cyan));
+  color: #fff; font-size: 16px; font-weight: 700;
+  cursor: pointer; border: none;
+  transition: all 0.2s;
+  box-shadow: 0 8px 32px rgba(37,99,235,0.3);
+}
+.install-cta-btn:hover { transform: translateY(-3px); box-shadow: 0 16px 48px rgba(37,99,235,0.4); }
+.install-cta-btn:active { transform: scale(0.97); }
+
+/* Home footer */
+.home-footer {
+  padding: 24px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 12px; color: var(--text3);
+  background: var(--bg2);
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════
+   DISCOVER SCREEN
+═══════════════════════════════════════════════ */
+.search-wrap { padding: 12px 16px 8px; flex-shrink: 0; }
+@media (min-width: 768px) { .search-wrap { padding: 16px 24px 8px; } }
+.search-box {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0 14px; height: 46px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-box:focus-within { border-color: var(--primary-l); box-shadow: 0 0 0 3px var(--primary-g); }
+.search-box input {
+  flex: 1; background: transparent; border: none;
+  color: var(--text); font-size: 15px;
+}
+.search-box input::placeholder { color: var(--text3); }
+.search-btn { color: var(--primary-l); font-size: 18px; cursor: pointer; }
+.voice-inline-btn { color: var(--text2); font-size: 18px; cursor: pointer; transition: color 0.15s; }
+.voice-inline-btn:hover { color: var(--text); }
+.voice-inline-btn.listening { color: var(--red); animation: mic-pulse 0.7s ease infinite; }
+@keyframes mic-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* Chips */
+.chips-row {
+  display: flex; gap: 8px; padding: 0 16px 10px;
+  overflow-x: auto; scrollbar-width: none; flex-shrink: 0;
+}
+.chips-row::-webkit-scrollbar { display: none; }
+@media (min-width: 768px) { .chips-row { padding: 0 24px 12px; } }
+.chip {
+  white-space: nowrap; padding: 6px 14px; border-radius: 20px;
+  font-size: 13px; font-weight: 500;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--text2); cursor: pointer;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.chip:hover:not(.active) { border-color: var(--border2); color: var(--text); }
+.chip:active { transform: scale(0.95); }
+
+/* History */
+#history-panel {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); margin: 0 16px 8px;
+  overflow: hidden; display: none; flex-shrink: 0;
+}
+#history-panel.show { display: block; }
+.history-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.history-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border);
+}
+.history-item:last-child { border-bottom: none; }
+.history-item:hover { background: var(--card2); }
+.history-del { color: var(--text3); font-size: 14px; background: none; cursor: pointer; padding: 4px; margin-left: auto; }
+
+/* Venue cards */
+.venue-card {
+  background: var(--card); border-radius: var(--radius);
+  border: 1px solid var(--border); padding: 14px;
+  margin-bottom: 10px; display: flex; gap: 12px;
+  cursor: pointer; transition: all 0.15s;
+}
+.venue-card:hover { border-color: var(--border2); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.venue-card:active { transform: scale(0.99); border-color: var(--primary-l); }
+.venue-thumb {
+  width: 68px; height: 68px; border-radius: 10px;
+  background: var(--card2); display: flex; align-items: center;
+  justify-content: center; font-size: 28px; flex-shrink: 0; overflow: hidden;
+}
+.venue-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.venue-info { flex: 1; min-width: 0; }
+.venue-name {
+  font-family: var(--font-display); font-size: 15px; font-weight: 600;
+  margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.venue-cat { font-size: 12px; color: var(--cyan); margin-bottom: 3px; }
+.venue-addr { font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+.venue-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 500;
+}
+.badge-open { background: rgba(16,185,129,0.12); color: var(--green); }
+.badge-closed { background: rgba(239,68,68,0.12); color: var(--red); }
+.badge-dist { background: var(--card2); color: var(--text2); }
+.badge-price { background: rgba(16,185,129,0.1); color: var(--green); }
+.badge-osm { background: rgba(6,182,212,0.1); color: var(--cyan); font-size: 10px; }
+.rating-stars { display: flex; align-items: center; gap: 2px; font-size: 11px; color: var(--gold); }
+.venue-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.act-btn {
+  width: 34px; height: 34px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; cursor: pointer; transition: all 0.15s;
+}
+.act-btn:active { transform: scale(0.88); }
+.act-btn:hover { filter: brightness(1.2); }
+.act-nav { background: rgba(37,99,235,0.12); color: var(--primary-l); }
+.act-call { background: rgba(16,185,129,0.12); color: var(--green); }
+.act-fav { background: rgba(239,68,68,0.08); color: var(--text3); }
+.act-fav.active { background: rgba(239,68,68,0.18); color: var(--red); }
+
+/* ═══════════════════════════════════════════════
+   MAP SCREEN
+═══════════════════════════════════════════════ */
+#map-container {
+  flex: 1;
+  position: relative;
+  min-height: 200px;
+}
+#map {
+  width: 100%;
+  height: 100%;
+}
+.map-overlay-btn {
+  position: absolute;
+  background: rgba(11,22,40,0.9);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-s);
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; cursor: pointer; z-index: 400;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  color: var(--text); transition: all 0.15s;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.map-overlay-btn:hover { background: var(--card2); border-color: var(--primary-l); }
+.map-overlay-btn:active { transform: scale(0.92); }
+#map-style-btn { top: 12px; right: 12px; }
+#map-locate-btn { top: 64px; right: 12px; }
+.map-counter {
+  position: absolute; top: 12px; left: 12px; z-index: 400;
+  background: var(--primary); border-radius: 10px;
+  padding: 5px 12px; font-size: 12px; font-weight: 600; color: #fff;
+  box-shadow: 0 4px 16px var(--primary-g);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+/* ── MAP: minimal overrides, let Leaflet do its own thing ── */
+.leaflet-container {
+  background: #1a2535 !important;
+}
+.leaflet-control-zoom { display: none !important; }
+.leaflet-control-attribution {
+  background: rgba(5,13,26,0.8) !important;
+  color: var(--text3) !important;
+  font-size: 10px !important;
+}
+
+/* ═══════════════════════════════════════════════
+   TRANSIT CARD
+═══════════════════════════════════════════════ */
+.transit-card {
+  background: var(--card); border-radius: var(--radius);
+  border: 1px solid var(--border); padding: 14px;
+  margin-bottom: 10px; display: flex; gap: 12px; align-items: flex-start;
+  transition: border-color 0.15s;
+}
+.transit-card:hover { border-color: var(--border2); }
+.transit-icon-wrap {
+  width: 52px; height: 52px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; flex-shrink: 0;
+}
+.transit-subway { background: rgba(37,99,235,0.12); }
+.transit-train { background: rgba(6,182,212,0.12); }
+.transit-bus { background: rgba(245,158,11,0.12); }
+.transit-tram { background: rgba(16,185,129,0.12); }
+.transit-name { font-family: var(--font-display); font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+.transit-type { font-size: 12px; color: var(--cyan); margin-bottom: 3px; }
+.lines-wrap { display: flex; gap: 4px; flex-wrap: wrap; margin: 5px 0; }
+.line-pill {
+  padding: 2px 8px; border-radius: 12px;
+  font-size: 11px; font-weight: 700;
+  background: var(--primary); color: #fff;
+}
+.accessible { color: var(--green); font-size: 11px; }
+
+/* ═══════════════════════════════════════════════
+   FAVORITES
+═══════════════════════════════════════════════ */
+.favs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 16px; }
+@media (min-width: 480px) { .favs-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 768px) { .favs-grid { grid-template-columns: repeat(4, 1fr); padding: 16px 24px; } }
+.fav-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px; cursor: pointer; transition: all 0.15s;
+}
+.fav-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+.fav-card:active { transform: scale(0.97); }
+.fav-icon { font-size: 28px; margin-bottom: 8px; }
+.fav-name { font-family: var(--font-display); font-size: 13px; font-weight: 700; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fav-cat { font-size: 11px; color: var(--cyan); margin-bottom: 8px; }
+.fav-nav-btn {
+  width: 100%; height: 30px;
+  background: rgba(37,99,235,0.1); border-radius: 8px;
+  color: var(--primary-l); font-size: 12px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  cursor: pointer; transition: all 0.15s;
+}
+.fav-nav-btn:hover { background: var(--primary); color: #fff; }
+
+/* ═══════════════════════════════════════════════
+   BOOKINGS
+═══════════════════════════════════════════════ */
+.bookings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 16px; }
+@media (min-width: 480px) { .bookings-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 768px) { .bookings-grid { grid-template-columns: repeat(4, 1fr); padding: 16px 24px; } }
+.booking-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 12px; text-align: center; cursor: pointer; transition: all 0.15s;
+  display: block; text-decoration: none;
+}
+.booking-card:hover { border-color: var(--primary-l); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.booking-card:active { transform: scale(0.96); }
+.booking-logo { font-size: 32px; margin-bottom: 8px; }
+.booking-name { font-family: var(--font-display); font-size: 13px; font-weight: 700; color: var(--text); }
+.booking-desc { font-size: 11px; color: var(--text2); margin-top: 3px; }
+
+/* ═══════════════════════════════════════════════
+   SETTINGS
+═══════════════════════════════════════════════ */
+.settings-section { padding: 12px 16px 4px; }
+@media (min-width: 768px) { .settings-section { padding: 12px 24px 4px; } }
+.settings-section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--text3); margin-bottom: 8px;
+}
+.settings-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.settings-row {
+  display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+  border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s;
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row:hover { background: var(--card2); }
+.settings-row:active { background: var(--card2); }
+.settings-row-icon { font-size: 20px; width: 28px; text-align: center; }
+.settings-row-info { flex: 1; }
+.settings-row-title { font-size: 14px; font-weight: 500; }
+.settings-row-sub { font-size: 12px; color: var(--text2); margin-top: 1px; }
+.toggle {
+  width: 44px; height: 26px; border-radius: 13px;
+  background: var(--text3); position: relative;
+  transition: background 0.2s; cursor: pointer; flex-shrink: 0;
+}
+.toggle.on { background: var(--primary-l); }
+.toggle::after {
+  content: ''; position: absolute;
+  top: 3px; left: 3px; width: 20px; height: 20px;
+  border-radius: 10px; background: #fff; transition: left 0.2s;
+}
+.toggle.on::after { left: 21px; }
+.style-opt {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  border-radius: var(--radius-s); cursor: pointer; transition: all 0.15s;
+  border: 1px solid transparent;
+}
+.style-opt.selected { border-color: var(--primary-l); background: rgba(37,99,235,0.08); }
+.style-opt:hover:not(.selected) { background: var(--card2); }
+.style-opt-icon { font-size: 22px; }
+.style-radio { width: 18px; height: 18px; border-radius: 9px; border: 2px solid var(--text3); margin-left: auto; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.style-opt.selected .style-radio { border-color: var(--primary-l); }
+.style-radio-dot { width: 8px; height: 8px; border-radius: 4px; background: var(--primary-l); display: none; }
+.style-opt.selected .style-radio-dot { display: block; }
+
+/* ═══════════════════════════════════════════════
+   BOTTOM SHEET
+═══════════════════════════════════════════════ */
+.sheet-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,0.65);
+  display: none; align-items: flex-end;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.sheet-overlay.open { display: flex; }
+.sheet {
+  background: var(--bg2); border-radius: 24px 24px 0 0;
+  width: 100%; max-height: 85vh; overflow-y: auto;
+  padding-bottom: var(--sab);
+  animation: sheet-up 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+.sheet::-webkit-scrollbar { display: none; }
+@keyframes sheet-up { from{transform:translateY(100%)} to{transform:translateY(0)} }
+@media (min-width: 768px) {
+  .sheet-overlay { align-items: center; justify-content: center; }
+  .sheet { border-radius: 20px; max-width: 520px; width: 90%; max-height: 80vh; animation: sheet-fade 0.2s ease; }
+  @keyframes sheet-fade { from{opacity:0;transform:scale(0.97)} to{opacity:1;transform:scale(1)} }
+}
+.sheet-handle { width: 36px; height: 4px; background: var(--text3); border-radius: 2px; margin: 12px auto; }
+.sheet-content { padding: 0 20px 24px; }
+.sheet-title { font-family: var(--font-display); font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+.sheet-cat { font-size: 14px; color: var(--cyan); margin-bottom: 16px; }
+.detail-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.detail-icon { font-size: 16px; margin-top: 2px; flex-shrink: 0; width: 20px; text-align: center; }
+.detail-text { font-size: 14px; color: var(--text2); line-height: 1.5; }
+.detail-text a { color: var(--primary-l); }
+.sheet-actions { display: flex; gap: 10px; margin-top: 20px; }
+.sheet-btn {
+  flex: 1; height: 46px; border-radius: var(--radius-s);
+  font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; transition: all 0.15s;
+}
+.sheet-btn:active { transform: scale(0.96); }
+.sheet-btn-primary { background: var(--primary); color: #fff; }
+.sheet-btn-primary:hover { background: var(--primary-l); }
+.sheet-btn-outline { background: var(--card); border: 1px solid var(--border); color: var(--text); }
+.sheet-btn-outline:hover { background: var(--card2); border-color: var(--border2); }
+.sheet-btn-fav { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+.sheet-btn-fav.active { background: var(--red); color: #fff; border-color: var(--red); }
+
+/* ═══════════════════════════════════════════════
+   VOICE FAB
+═══════════════════════════════════════════════ */
+#voice-fab {
+  position: fixed;
+  bottom: calc(var(--nav-h) + var(--sab) + 16px);
+  right: 16px; z-index: 500;
+  width: 56px; height: 56px; border-radius: 28px;
+  background: var(--primary); color: #fff; font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 24px var(--primary-g);
+  transition: all 0.2s; border: none; cursor: pointer;
+}
+#voice-fab:hover { background: var(--primary-l); transform: scale(1.05); }
+#voice-fab:active { transform: scale(0.92); }
+#voice-fab.listening { background: var(--red); animation: fab-pulse 0.7s ease infinite; box-shadow: 0 4px 24px rgba(239,68,68,0.4); }
+#voice-fab.processing { background: var(--amber); }
+@keyframes fab-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+@media (min-width: 768px) { #voice-fab { bottom: 32px; right: 32px; } }
+
+/* ═══════════════════════════════════════════════
+   TRANSCRIPTION BUBBLE
+═══════════════════════════════════════════════ */
+#transcription {
+  position: fixed;
+  bottom: calc(var(--nav-h) + var(--sab) + 84px);
+  right: 16px; left: 80px; z-index: 500;
+  background: rgba(17,32,53,0.95);
+  border: 1px solid var(--border2);
+  border-radius: 16px 16px 4px 16px;
+  padding: 10px 14px; font-size: 13px; color: var(--text);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  display: none; max-width: 320px; margin-left: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+#transcription.show { display: block; }
+@media (min-width: 768px) { #transcription { right: 100px; bottom: 32px; left: auto; max-width: 360px; } }
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
+#toast {
+  position: fixed;
+  bottom: calc(var(--nav-h) + var(--sab) + 16px);
+  left: 16px; right: 80px; z-index: 700;
+  background: var(--card2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 12px 16px; font-size: 13px; font-weight: 500;
+  display: none; align-items: center; gap: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  max-width: 400px;
+}
+#toast.show { display: flex; animation: toast-in 0.25s ease; }
+@keyframes toast-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@media (min-width: 768px) { #toast { left: 260px; right: 40px; bottom: 32px; } }
+
+/* ═══════════════════════════════════════════════
+   STATES
+═══════════════════════════════════════════════ */
+.loading-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 16px; }
+.spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--primary-l); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+.loading-text { font-size: 14px; color: var(--text2); }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 32px; text-align: center; gap: 12px; }
+.empty-icon { font-size: 48px; }
+.empty-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+.empty-sub { font-size: 14px; color: var(--text2); line-height: 1.65; max-width: 280px; }
+.retry-btn {
+  margin-top: 8px; padding: 10px 24px; border-radius: var(--radius-s);
+  background: var(--primary); color: #fff; font-size: 14px; font-weight: 600;
+  cursor: pointer; border: none; transition: all 0.15s;
+}
+.retry-btn:hover { background: var(--primary-l); transform: translateY(-1px); }
+
+/* ═══════════════════════════════════════════════
+   PERMISSION / SPLASH
+═══════════════════════════════════════════════ */
+#splash {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  transition: opacity 0.5s, visibility 0.5s;
+}
+#splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+.splash-logo { font-size: 64px; animation: float 2s ease-in-out infinite; }
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+.splash-title {
+  font-family: var(--font-display);
+  font-size: 28px; font-weight: 700;
+  background: linear-gradient(135deg, var(--primary-l), var(--cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.splash-loader { width: 120px; height: 3px; background: var(--card2); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.splash-loader-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--cyan));
+  border-radius: 3px; animation: load 2s ease forwards;
+}
+@keyframes load { from{width:0} to{width:100%} }
+
+#permission-screen {
+  position: fixed; inset: 0; z-index: 800;
+  background: var(--bg); display: none;
+  flex-direction: column; align-items: center; justify-content: center;
+  padding: 32px; text-align: center; gap: 16px;
+  overflow-y: auto;
+}
+#permission-screen.show { display: flex; }
+.perm-icon { font-size: 64px; margin-bottom: 8px; }
+.perm-title { font-family: var(--font-display); font-size: 26px; font-weight: 800; }
+.perm-sub { font-size: 15px; color: var(--text2); line-height: 1.65; max-width: 320px; }
+.perm-features { display: flex; flex-direction: column; gap: 10px; margin: 8px 0; width: 100%; max-width: 320px; }
+.perm-feat { display: flex; align-items: center; gap: 12px; text-align: left; background: var(--card); border-radius: var(--radius-s); padding: 12px; }
+.perm-allow-btn {
+  width: 100%; max-width: 320px; height: 52px; border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--primary), var(--cyan));
+  color: #fff; font-size: 16px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 8px; cursor: pointer; border: none;
+  transition: all 0.18s; box-shadow: 0 8px 32px rgba(37,99,235,0.35);
+}
+.perm-allow-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(37,99,235,0.45); }
+.perm-allow-btn:active { transform: scale(0.97); }
+.perm-skip { font-size: 13px; color: var(--text2); margin-top: 8px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ═══════════════════════════════════════════════
+   CONTENT PADDING
+═══════════════════════════════════════════════ */
+.content-pad { padding: 0 16px; }
+@media (min-width: 768px) { .content-pad { padding: 0 24px; } }
+</style>
+</head>
+<body>
+
+<!-- ════ SPLASH ════ -->
+<div id="splash">
+  <div class="splash-logo">🗺️</div>
+  <div class="splash-title">City Explorer</div>
+  <div style="color:var(--text2);font-size:13px">Discovering your world...</div>
+  <div class="splash-loader"><div class="splash-loader-fill"></div></div>
+</div>
+
+<!-- ════ PERMISSION ════ -->
+<div id="permission-screen">
+  <div class="perm-icon">📍</div>
+  <div class="perm-title">City Explorer</div>
+  <div class="perm-sub">Discover venues, transit & attractions near you — voice-powered exploration for every city.</div>
+  <div class="perm-features">
+    <div class="perm-feat"><span style="font-size:22px">🎤</span><span>Voice search in your language — auto-detected</span></div>
+    <div class="perm-feat"><span style="font-size:22px">🗺️</span><span>Free OpenStreetMap — no subscription needed</span></div>
+    <div class="perm-feat"><span style="font-size:22px">🚇</span><span>Real transit data — subway, bus, train, tram</span></div>
+    <div class="perm-feat"><span style="font-size:22px">❤️</span><span>Save favorites & search offline</span></div>
+  </div>
+  <button class="perm-allow-btn" onclick="requestPermissions()">📍 Allow Location Access</button>
+  <div class="perm-skip" onclick="skipPermissions()">Skip — use default location</div>
+</div>
+
+<!-- ════ APP ════ -->
+<div id="app" style="display:none">
+
+  <!-- SIDEBAR (desktop) -->
+  <nav id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-logo">🗺️</div>
+      <div class="sidebar-brand-name">City Explorer</div>
+      <div class="sidebar-brand-sub">Discover your world</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="sidebar-item active" onclick="switchScreen('home',this)" id="snav-home"><span class="sidebar-item-icon">🏠</span> Home</div>
+      <div class="sidebar-item" onclick="switchScreen('discover',this)" id="snav-discover"><span class="sidebar-item-icon">🔍</span> Discover</div>
+      <div class="sidebar-item" onclick="switchScreen('map',this)" id="snav-map"><span class="sidebar-item-icon">🗺️</span> Map</div>
+      <div class="sidebar-item" onclick="switchScreen('transit',this)" id="snav-transit"><span class="sidebar-item-icon">🚇</span> Transit</div>
+      <div class="sidebar-item" onclick="switchScreen('favorites',this)" id="snav-favorites"><span class="sidebar-item-icon">❤️</span> Favorites</div>
+      <div class="sidebar-item" onclick="switchScreen('bookings',this)" id="snav-bookings"><span class="sidebar-item-icon">📋</span> Book</div>
+      <div class="sidebar-item" onclick="switchScreen('settings',this)" id="snav-settings"><span class="sidebar-item-icon">⚙️</span> Settings</div>
+    </div>
+    <div class="sidebar-footer">
+      <button class="sidebar-install-btn" onclick="toggleInstallPrompt()">⬇️ Install App</button>
+    </div>
+  </nav>
+
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+    <div id="offline-banner">📶 Offline — showing cached results</div>
+
+    <!-- ══ HOME SCREEN ══ -->
+    <div class="screen active" id="screen-home">
+      <div class="scroll-area">
+
+        <!-- HERO -->
+        <section class="hero">
+          <div class="hero-canvas">
+            <div class="orb orb-1"></div>
+            <div class="orb orb-2"></div>
+            <div class="orb orb-3"></div>
+            <div class="hero-grid"></div>
+            <div class="hero-dots" id="hero-dots"></div>
+          </div>
+
+          <div class="hero-content">
+            <div class="hero-badge"><div class="hero-badge-dot"></div> Live City Data — Foursquare + OpenStreetMap</div>
+            <h1 class="hero-title">
+              <span class="hero-title-line1">Explore Every</span>
+              <span class="hero-title-line2">Corner of Your City</span>
+            </h1>
+            <p class="hero-sub">Voice-search restaurants, cafes, museums, transit stops and more — with an interactive map, favorites, offline support and real-time data.</p>
+
+            <div class="hero-search">
+              <div class="hero-search-inner">
+                <span class="hero-search-icon">🔍</span>
+                <input class="hero-search-input" id="hero-search-input" type="search" placeholder="Search restaurants, museums, cafes…" autocomplete="off" onkeydown="if(event.key==='Enter'){heroSearch()}">
+                <button class="hero-search-voice" id="hero-voice-btn" onclick="toggleVoice(true)">🎤</button>
+                <button class="hero-search-btn" onclick="heroSearch()">Search</button>
+              </div>
+            </div>
+
+            <div class="hero-actions">
+              <button class="hero-btn-primary" onclick="switchScreen('discover',null);doSearch()">📍 Explore Nearby</button>
+              <button class="hero-btn-ghost" onclick="switchScreen('map',null)">🗺️ Open Map</button>
+              <button class="hero-btn-ghost" onclick="switchScreen('transit',null)">🚇 Transit</button>
+            </div>
+          </div>
+
+          <div class="hero-stats">
+            <div class="hero-stat"><div class="hero-stat-num">50M+</div><div class="hero-stat-label">Venues</div></div>
+            <div class="hero-stat"><div class="hero-stat-num">100+</div><div class="hero-stat-label">Countries</div></div>
+            <div class="hero-stat"><div class="hero-stat-num">Free</div><div class="hero-stat-label">No sign-up</div></div>
+          </div>
+        </section>
+
+        <!-- FEATURES -->
+        <section class="features-section">
+          <div class="section-label">✦ Features</div>
+          <h2 class="section-title">Everything You Need<br>in One App</h2>
+          <p class="section-sub">From voice search to offline maps — built for every device, every city, every language.</p>
+          <div class="features-grid">
+            <div class="feat-card" style="--accent-color:var(--primary-l);--icon-bg:rgba(37,99,235,0.12)" onclick="switchScreen('discover',null);doSearch()">
+              <div class="feat-icon">🔍</div>
+              <div class="feat-title">Smart Venue Search</div>
+              <div class="feat-desc">Restaurants, cafes, museums, parks, theaters, hotels and more — powered by Foursquare with OSM fallback.</div>
+              <div class="feat-arrow">→</div>
+            </div>
+            <div class="feat-card" style="--accent-color:var(--cyan);--icon-bg:rgba(6,182,212,0.12)" onclick="switchScreen('map',null)">
+              <div class="feat-icon">🗺️</div>
+              <div class="feat-title">Interactive Map</div>
+              <div class="feat-desc">3 free map styles — Standard, Terrain and Voyager. All powered by OpenStreetMap, no subscription.</div>
+              <div class="feat-arrow">→</div>
+            </div>
+            <div class="feat-card" style="--accent-color:var(--amber);--icon-bg:rgba(245,158,11,0.12)" onclick="switchScreen('transit',null)">
+              <div class="feat-icon">🚇</div>
+              <div class="feat-title">Live Transit Data</div>
+              <div class="feat-desc">Subway, train, bus and tram stops near you — with line numbers, operators and accessibility info.</div>
+              <div class="feat-arrow">→</div>
+            </div>
+            <div class="feat-card" style="--accent-color:var(--red);--icon-bg:rgba(239,68,68,0.1)" onclick="switchScreen('favorites',null)">
+              <div class="feat-icon">🎤</div>
+              <div class="feat-title">Voice Search</div>
+              <div class="feat-desc">Speak in your language — auto-detected. Supports 50+ languages via native speech recognition.</div>
+              <div class="feat-arrow">→</div>
+            </div>
+            <div class="feat-card" style="--accent-color:var(--green);--icon-bg:rgba(16,185,129,0.1)" onclick="switchScreen('favorites',null)">
+              <div class="feat-icon">❤️</div>
+              <div class="feat-title">Favorites & History</div>
+              <div class="feat-desc">Save places to your favorites and revisit your last 50 searches — all stored offline on your device.</div>
+              <div class="feat-arrow">→</div>
+            </div>
+            <div class="feat-card" style="--accent-color:var(--violet);--icon-bg:rgba(139,92,246,0.1)" onclick="toggleInstallPrompt()">
+              <div class="feat-icon">📲</div>
+              <div class="feat-title">Install as App</div>
+              <div class="feat-desc">Add to your home screen on any device — Android, iPhone, Mac, Windows, Samsung. Works offline.</div>
+              <div class="feat-arrow">→</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CATEGORIES -->
+        <section class="categories-section">
+          <div class="section-label">✦ Categories</div>
+          <h2 class="section-title">What Are You<br>Looking For?</h2>
+          <div class="cat-grid" id="home-cat-grid"></div>
+        </section>
+
+        <!-- HOW IT WORKS -->
+        <section class="how-section">
+          <div class="section-label">✦ How It Works</div>
+          <h2 class="section-title">Up & Running in<br>Three Steps</h2>
+          <div class="steps-row">
+            <div class="step-card">
+              <div class="step-num">01</div>
+              <div class="step-title">Allow Location</div>
+              <div class="step-desc">Grant location access once. City Explorer finds everything around you instantly — no account required.</div>
+            </div>
+            <div class="step-card">
+              <div class="step-num">02</div>
+              <div class="step-title">Search or Speak</div>
+              <div class="step-desc">Type a search or tap the mic to speak. Smart filters detect price, rating, open-now status and dietary needs.</div>
+            </div>
+            <div class="step-card">
+              <div class="step-num">03</div>
+              <div class="step-title">Explore & Navigate</div>
+              <div class="step-desc">View results on the map, get directions, call venues, save favorites and share places with friends.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PLATFORMS -->
+        <section class="platforms-section">
+          <div class="platforms-title">Works on every device & browser</div>
+          <div class="platforms-row">
+            <div class="platform-badge"><span class="platform-icon">🤖</span> Android</div>
+            <div class="platform-badge"><span class="platform-icon">🍎</span> iPhone / iOS</div>
+            <div class="platform-badge"><span class="platform-icon">💻</span> Mac</div>
+            <div class="platform-badge"><span class="platform-icon">🪟</span> Windows</div>
+            <div class="platform-badge"><span class="platform-icon">🐧</span> Linux</div>
+            <div class="platform-badge"><span class="platform-icon">📺</span> Samsung</div>
+            <div class="platform-badge"><span class="platform-icon">🌐</span> Chrome</div>
+            <div class="platform-badge"><span class="platform-icon">🦊</span> Firefox</div>
+            <div class="platform-badge"><span class="platform-icon">🧭</span> Safari</div>
+            <div class="platform-badge"><span class="platform-icon">🔷</span> Edge</div>
+            <div class="platform-badge"><span class="platform-icon">⚡</span> Opera</div>
+            <div class="platform-badge"><span class="platform-icon">🌍</span> Samsung Browser</div>
+          </div>
+        </section>
+
+        <!-- INSTALL CTA -->
+        <section class="install-section">
+          <div class="section-label" style="justify-content:center">✦ Install</div>
+          <h2 class="section-title">Add to Your Home Screen</h2>
+          <p style="font-size:15px;color:var(--text2);max-width:420px;margin:0 auto;line-height:1.65">Install City Explorer like a native app — no app store needed. Works fully offline once installed.</p>
+          <div class="install-devices">
+            <div class="install-device"><div class="install-device-icon">🤖</div><div class="install-device-name">Android</div></div>
+            <div class="install-device"><div class="install-device-icon">🍎</div><div class="install-device-name">iPhone</div></div>
+            <div class="install-device"><div class="install-device-icon">🪟</div><div class="install-device-name">Windows</div></div>
+            <div class="install-device"><div class="install-device-icon">💻</div><div class="install-device-name">Mac</div></div>
+            <div class="install-device"><div class="install-device-icon">📺</div><div class="install-device-name">Samsung</div></div>
+          </div>
+          <button class="install-cta-btn" onclick="toggleInstallPrompt()">⬇️ Install City Explorer — Free</button>
+          <div style="font-size:12px;color:var(--text3);margin-top:16px">On iPhone: Safari → Share → Add to Home Screen</div>
+        </section>
+
+        <div class="home-footer">
+          <div>City Explorer PWA · Map data © OpenStreetMap contributors · Venues © Foursquare</div>
+          <div style="margin-top:4px">Works offline · No account needed · All data stays on your device</div>
+        </div>
+
+      </div><!-- end scroll-area -->
+    </div><!-- end screen-home -->
+
+    <!-- ══ DISCOVER ══ -->
+    <div class="screen" id="screen-discover">
+      <div class="hdr">
+        <div class="hdr-title">🔍 Discover</div>
+        <div class="hdr-actions">
+          <button class="icon-btn" onclick="toggleInstallPrompt()" title="Install">⬇️</button>
+          <button class="icon-btn" onclick="shareApp()" title="Share">🔗</button>
+        </div>
+      </div>
+      <div class="search-wrap">
+        <div class="search-box">
+          <span>🔍</span>
+          <input type="search" id="search-input" placeholder="Search places, museums, cafes…" autocomplete="off"
+            oninput="onSearchInput()" onkeydown="if(event.key==='Enter')doSearch()">
+          <button class="voice-inline-btn" id="voice-search-btn" onclick="toggleVoice(false)">🎤</button>
+          <button class="search-btn" onclick="doSearch()">→</button>
+        </div>
+      </div>
+      <div id="history-panel">
+        <div class="history-header">
+          <span style="font-size:13px;font-weight:600">Recent</span>
+          <button onclick="clearHistory()" style="font-size:12px;color:var(--red);background:none;cursor:pointer">Clear all</button>
+        </div>
+        <div id="history-list"></div>
+      </div>
+      <div class="chips-row" id="category-chips"></div>
+      <div class="scroll-area content-pad" id="venues-list">
+        <div class="empty-state">
+          <div class="empty-icon">🏙️</div>
+          <div class="empty-title">Find Places Near You</div>
+          <div class="empty-sub">Search or tap a category above. Or tap 🎤 to use your voice.</div>
+          <button class="retry-btn" onclick="doSearch()">📍 Search Nearby</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MAP ══ -->
+    <div class="screen" id="screen-map">
+      <div class="hdr">
+        <div class="hdr-title">🗺️ Map</div>
+        <div class="hdr-actions">
+          <button class="icon-btn" onclick="centerOnUser()">📍</button>
+          <button class="icon-btn" onclick="toggleMapStyleSheet()">🗂️</button>
+        </div>
+      </div>
+      <div id="map-container">
+        <div id="map"></div>
+        <div class="map-counter" id="map-counter" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- ══ TRANSIT ══ -->
+    <div class="screen" id="screen-transit">
+      <div class="hdr">
+        <div class="hdr-title">🚇 Transit</div>
+        <div class="hdr-actions">
+          <button class="icon-btn" onclick="loadTransit()">🔄</button>
+        </div>
+      </div>
+      <div class="chips-row" id="transit-filter-chips"></div>
+      <div class="scroll-area content-pad" id="transit-list">
+        <div class="empty-state">
+          <div class="empty-icon">🚌</div>
+          <div class="empty-title">Transit Near You</div>
+          <div class="empty-sub">Tap refresh to find subway, train, bus and tram stations nearby.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ FAVORITES ══ -->
+    <div class="screen" id="screen-favorites">
+      <div class="hdr">
+        <div class="hdr-title">❤️ Favorites</div>
+        <div class="hdr-actions">
+          <button class="icon-btn" id="fav-view-btn" onclick="toggleFavView()">⊞</button>
+        </div>
+      </div>
+      <div class="scroll-area"><div id="favorites-content"></div></div>
+    </div>
+
+    <!-- ══ BOOKINGS ══ -->
+    <div class="screen" id="screen-bookings">
+      <div class="hdr"><div class="hdr-title">📋 Book Services</div></div>
+      <div class="scroll-area" id="bookings-content"></div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="screen" id="screen-settings">
+      <div class="hdr"><div class="hdr-title">⚙️ Settings</div></div>
+      <div class="scroll-area" id="settings-content"></div>
+    </div>
+
+    <!-- BOTTOM NAV (mobile) -->
+    <nav id="bottom-nav">
+      <div class="nav-item active" onclick="switchScreen('home',this)"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+      <div class="nav-item" onclick="switchScreen('discover',this)"><div class="nav-icon">🔍</div><div class="nav-label">Discover</div></div>
+      <div class="nav-item" onclick="switchScreen('map',this)"><div class="nav-icon">🗺️</div><div class="nav-label">Map</div></div>
+      <div class="nav-item" onclick="switchScreen('transit',this)"><div class="nav-icon">🚇</div><div class="nav-label">Transit</div></div>
+      <div class="nav-item" onclick="switchScreen('favorites',this)"><div class="nav-icon">❤️</div><div class="nav-label">Saved</div></div>
+      <div class="nav-item" onclick="switchScreen('settings',this)"><div class="nav-icon">⚙️</div><div class="nav-label">More</div></div>
+    </nav>
+  </div><!-- end flex col -->
+</div><!-- end app -->
+
+<!-- VOICE FAB -->
+<button id="voice-fab" onclick="toggleVoice(false)">🎤</button>
+
+<!-- TRANSCRIPTION -->
+<div id="transcription"></div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- VENUE DETAIL SHEET -->
+<div class="sheet-overlay" id="venue-sheet" onclick="closeSheet('venue-sheet')">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content" id="venue-sheet-content"></div>
+  </div>
+</div>
+
+<!-- MAP STYLE SHEET -->
+<div class="sheet-overlay" id="map-style-sheet" onclick="closeSheet('map-style-sheet')">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content">
+      <div class="sheet-title" style="margin-bottom:16px">Map Style</div>
+      <div id="map-style-opts"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous"></script>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════
+const FS_KEY   = 'JC3Y12LOF4Q4WBYFXCTTXWRJ04JYY0TGLB5BPFFWR5WNZ1SG';
+const CACHE_TTL = 24 * 60 * 60 * 1000;
+
+const CATEGORIES = [
+  {id:'all',     label:'🗺️ All',       fsq:'',      emoji:'🗺️', name:'All Places'},
+  {id:'food',    label:'🍽️ Food',      fsq:'13000', emoji:'🍽️', name:'Restaurants'},
+  {id:'cafe',    label:'☕ Cafes',      fsq:'13032', emoji:'☕', name:'Cafes'},
+  {id:'bars',    label:'🍸 Bars',       fsq:'13003', emoji:'🍸', name:'Bars & Clubs'},
+  {id:'hotel',   label:'🏨 Hotels',     fsq:'19014', emoji:'🏨', name:'Hotels'},
+  {id:'museum',  label:'🏛️ Museums',   fsq:'10027', emoji:'🏛️', name:'Museums'},
+  {id:'theater', label:'🎭 Theaters',   fsq:'10034', emoji:'🎭', name:'Theaters'},
+  {id:'park',    label:'🌿 Parks',      fsq:'16032', emoji:'🌿', name:'Parks'},
+  {id:'shopping',label:'🛍️ Shopping',  fsq:'17000', emoji:'🛍️', name:'Shopping'},
+  {id:'hospital',label:'🏥 Medical',   fsq:'15014', emoji:'🏥', name:'Medical'},
+  {id:'gas',     label:'⛽ Gas',        fsq:'17069', emoji:'⛽', name:'Gas Stations'},
+];
+const TRANSIT_TYPES = [
+  {id:'all',    label:'🚏 All'},
+  {id:'subway', label:'🚇 Subway'},
+  {id:'train',  label:'🚆 Train'},
+  {id:'bus',    label:'🚌 Bus'},
+  {id:'tram',   label:'🚊 Tram'},
+];
+const MAP_STYLES = [
+  {id:'dark',     label:'Dark',     desc:'Dark theme — matches app',  icon:'🌑', url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',        attr:'© CartoDB © OpenStreetMap'},
+  {id:'standard', label:'Standard', desc:'Classic OpenStreetMap',     icon:'🗺️', url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',                    attr:'© OpenStreetMap contributors'},
+  {id:'voyager',  label:'Voyager',  desc:'Clean light style',         icon:'✈️', url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', attr:'© CartoDB © OpenStreetMap'},
+];
+const BOOKINGS = [
+  {name:'Uber',icon:'🚗',desc:'Ride sharing',url:'https://m.uber.com'},
+  {name:'Lyft',icon:'🚕',desc:'Ride sharing',url:'https://www.lyft.com'},
+  {name:'Booking.com',icon:'🏨',desc:'Hotels',url:'https://www.booking.com'},
+  {name:'Airbnb',icon:'🏠',desc:'Vacation rentals',url:'https://www.airbnb.com'},
+  {name:'GetYourGuide',icon:'🎟️',desc:'Tours & activities',url:'https://www.getyourguide.com'},
+  {name:'Viator',icon:'🗺️',desc:'Tours & experiences',url:'https://www.viator.com'},
+  {name:'OpenTable',icon:'🍽️',desc:'Restaurant reservations',url:'https://www.opentable.com'},
+  {name:'Hostelworld',icon:'🛏️',desc:'Budget stays',url:'https://www.hostelworld.com'},
+];
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+const state = {
+  lat: null, lng: null,
+  venues: [],
+  transit: [],
+  favorites: safeJSON('favorites', []),
+  history:   safeJSON('searchHistory', []),
+  activeCategory: 'all',
+  activeTransit:  'all',
+  mapStyle:      localStorage.getItem('mapStyle') || 'dark',
+  voiceFeedback: localStorage.getItem('voiceFeedback') !== 'false',
+  favListView:   false,
+  map: null, tileLayer: null, markers: [],
+  recognition: null, isListening: false,
+  isOffline: !navigator.onLine,
+  cache: safeJSON('venueCache', {}),
+  currentScreen: 'home',
+};
+
+function safeJSON(key, def) {
+  try { return JSON.parse(localStorage.getItem(key)) || def; }
+  catch(e) { return def; }
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+window.addEventListener('load', () => {
+  buildHeroDots();
+  buildHomeCatGrid();
+  setTimeout(() => {
+    document.getElementById('splash').classList.add('hide');
+    if (localStorage.getItem('locationGranted')) {
+      showApp(); getLocation();
+    } else {
+      document.getElementById('permission-screen').classList.add('show');
+    }
+  }, 2000);
+});
+
+window.addEventListener('online',  () => { state.isOffline = false; document.getElementById('offline-banner').classList.remove('show'); });
+window.addEventListener('offline', () => { state.isOffline = true;  document.getElementById('offline-banner').classList.add('show'); });
+
+// Keyboard shortcut: Escape closes sheets
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeSheet('venue-sheet'); closeSheet('map-style-sheet'); }
+});
+
+function buildHeroDots() {
+  const c = document.getElementById('hero-dots');
+  if (!c) return;
+  const dots = [
+    {t:'15%',l:'20%',sz:10,col:'#3b82f6',dur:'7s',del:'-1s',dx:'8px',dy:'-12px'},
+    {t:'35%',l:'75%',sz:8, col:'#06b6d4',dur:'5s',del:'-3s',dx:'-6px',dy:'10px'},
+    {t:'60%',l:'15%',sz:12,col:'#8b5cf6',dur:'9s',del:'-5s',dx:'10px',dy:'-8px'},
+    {t:'25%',l:'50%',sz:6, col:'#14b8a6',dur:'6s',del:'-2s',dx:'-8px',dy:'6px'},
+    {t:'75%',l:'60%',sz:9, col:'#3b82f6',dur:'8s',del:'-4s',dx:'6px',dy:'-10px'},
+    {t:'50%',l:'35%',sz:7, col:'#06b6d4',dur:'7s',del:'-6s',dx:'-5px',dy:'8px'},
+  ];
+  c.innerHTML = dots.map(d =>
+    `<div class="dot" style="top:${d.t};left:${d.l};width:${d.sz}px;height:${d.sz}px;background:${d.col};color:${d.col};--dur:${d.dur};--del:${d.del};--dx:${d.dx};--dy:${d.dy}"></div>`
+  ).join('');
+}
+
+function buildHomeCatGrid() {
+  const el = document.getElementById('home-cat-grid');
+  if (!el) return;
+  el.innerHTML = CATEGORIES.map(c => `
+    <div class="cat-item ${c.id === state.activeCategory ? 'active' : ''}"
+      onclick="selectCategoryFromHome('${c.id}')">
+      <div class="cat-emoji">${c.emoji}</div>
+      <div class="cat-name">${c.name}</div>
+    </div>`).join('');
+}
+
+function selectCategoryFromHome(id) {
+  state.activeCategory = id;
+  buildHomeCatGrid();
+  buildCategoryChips();
+  switchScreen('discover', null);
+  doSearch();
+}
+
+// ═══════════════════════════════════════════
+//  APP SHOW / PERMISSIONS
+// ═══════════════════════════════════════════
+function showApp() {
+  document.getElementById('permission-screen').classList.remove('show');
+  document.getElementById('app').style.display = window.innerWidth >= 768 ? 'grid' : 'flex';
+  buildCategoryChips();
+  buildTransitChips();
+  buildBookings();
+  buildSettings();
+  initMap();
+  renderFavorites();
+  if (state.isOffline) document.getElementById('offline-banner').classList.add('show');
+  if (state.lat) setTimeout(() => doSearch(), 400);
+}
+
+function requestPermissions() {
+  if (!navigator.geolocation) { skipPermissions(); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    state.lat = pos.coords.latitude;
+    state.lng = pos.coords.longitude;
+    localStorage.setItem('locationGranted', '1');
+    showApp();
+    toast('📍 Location found!');
+  }, () => {
+    skipPermissions();
+    toast('📍 Using default location (New York)');
+  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+}
+
+function skipPermissions() {
+  state.lat = 40.7580; state.lng = -73.9855;
+  localStorage.setItem('locationGranted', '1');
+  showApp();
+}
+
+function getLocation() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.watchPosition(pos => {
+    state.lat = pos.coords.latitude;
+    state.lng = pos.coords.longitude;
+    if (state.map) state.map.setView([state.lat, state.lng], state.map.getZoom());
+  }, null, { enableHighAccuracy: true });
+}
+
+// ═══════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════
+function switchScreen(id, navEl) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.sidebar-item').forEach(n => n.classList.remove('active'));
+
+  const screen = document.getElementById('screen-' + id);
+  if (screen) screen.classList.add('active');
+  if (navEl) navEl.classList.add('active');
+  const sideItem = document.getElementById('snav-' + id);
+  if (sideItem) sideItem.classList.add('active');
+
+  state.currentScreen = id;
+  if (id === 'map') {
+    setTimeout(() => { if (state.map) state.map.invalidateSize(); }, 50);
+  }
+  if (id === 'transit'  && !state.transit.length) loadTransit();
+  if (id === 'favorites') renderFavorites();
+  if (id === 'settings')  buildSettings();
+}
+
+// ═══════════════════════════════════════════
+//  CHIPS
+// ═══════════════════════════════════════════
+function buildCategoryChips() {
+  const el = document.getElementById('category-chips');
+  if (!el) return;
+  el.innerHTML = CATEGORIES.map(c =>
+    `<div class="chip ${c.id === state.activeCategory ? 'active' : ''}" onclick="selectCategory('${c.id}')">${c.label}</div>`
+  ).join('');
+}
+function selectCategory(id) {
+  state.activeCategory = id;
+  buildCategoryChips();
+  buildHomeCatGrid();
+  doSearch();
+}
+function buildTransitChips() {
+  const el = document.getElementById('transit-filter-chips');
+  if (!el) return;
+  el.innerHTML = TRANSIT_TYPES.map(t =>
+    `<div class="chip ${t.id === state.activeTransit ? 'active' : ''}" onclick="filterTransit('${t.id}')">${t.label}</div>`
+  ).join('');
+}
+function filterTransit(id) {
+  state.activeTransit = id;
+  buildTransitChips();
+  renderTransit();
+}
+
+// ═══════════════════════════════════════════
+//  SEARCH
+// ═══════════════════════════════════════════
+let searchTimeout;
+function onSearchInput() {
+  const q = document.getElementById('search-input').value.trim();
+  clearTimeout(searchTimeout);
+  if (!q) { hideHistory(); return; }
+  showHistory();
+  searchTimeout = setTimeout(() => { if (q.length >= 3) doSearch(); }, 900);
+}
+
+function heroSearch() {
+  const q = document.getElementById('hero-search-input').value.trim();
+  document.getElementById('search-input').value = q;
+  switchScreen('discover', null);
+  doSearch(q || undefined);
+}
+
+async function doSearch(customQuery) {
+  const query = customQuery !== undefined ? customQuery : (document.getElementById('search-input')?.value?.trim() || '');
+  hideHistory();
+
+  if (!state.lat) {
+    toast('📍 Getting your location…');
+    navigator.geolocation?.getCurrentPosition(pos => {
+      state.lat = pos.coords.latitude;
+      state.lng = pos.coords.longitude;
+      doSearch(query);
+    }, () => { state.lat = 40.7580; state.lng = -73.9855; doSearch(query); });
+    return;
+  }
+
+  const cat = CATEGORIES.find(c => c.id === state.activeCategory) || CATEGORIES[0];
+  const fsqCat = cat.fsq || '';
+  const effectiveQ = query || (state.activeCategory !== 'all' ? cat.name : '');
+  const cacheKey = 'v3_' + effectiveQ + '_' + fsqCat + '_' + Math.round(state.lat * 10) + '_' + Math.round(state.lng * 10);
+
+  const cached = state.cache[cacheKey];
+  if (cached && (Date.now() - cached.ts < CACHE_TTL)) {
+    state.venues = cached.data;
+    renderVenues();
+    updateMapMarkers();
+    if (query) saveHistory(query);
+    return;
+  }
+
+  showLoading('venues-list', 'Searching for places…');
+
+  let venues = await tryFoursquare(effectiveQ, fsqCat);
+  if (!venues || venues.length === 0) venues = await tryOsmVenues(effectiveQ, cat.id);
+
+  state.venues = venues || [];
+  if (state.venues.length > 0) {
+    state.cache[cacheKey] = { ts: Date.now(), data: state.venues };
+    try { localStorage.setItem('venueCache', JSON.stringify(state.cache)); } catch(e) {}
+  }
+  renderVenues();
+  updateMapMarkers();
+  if (query) saveHistory(query);
+  if (state.voiceFeedback && state.venues.length > 0) speak('Found ' + state.venues.length + ' places');
+}
+
+// ─── Foursquare (3 proxy attempts) ───
+async function tryFoursquare(query, fsqCat) {
+  const params = new URLSearchParams({
+    ll: state.lat + ',' + state.lng,
+    radius: 5000, limit: 30, sort: 'DISTANCE',
+    fields: 'fsq_id,name,location,categories,distance,rating,price,hours,tel,website,photos',
+  });
+  if (query) params.append('query', query);
+  if (fsqCat) params.append('categories', fsqCat);
+  const url = 'https://api.foursquare.com/v3/places/search?' + params;
+
+  for (const attempt of [
+    () => fetch(url, { headers: { Authorization: FS_KEY } }),
+    () => fetch('https://corsproxy.io/?' + encodeURIComponent(url), { headers: { Authorization: FS_KEY } }),
+    () => fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url), { headers: { Authorization: FS_KEY } }),
+  ]) {
+    try {
+      const res = await attempt();
+      if (!res.ok) continue;
+      const data = await res.json();
+      const r = (data.results || []).map(mapFsqVenue).filter(v => v.lat && v.lng);
+      if (r.length > 0) return r;
+    } catch(e) { console.warn('FSQ failed:', e.message); }
+  }
+  return [];
+}
+
+// ─── OSM Overpass fallback ───
+async function tryOsmVenues(query, catId) {
+  const r = 3000, lat = state.lat, lng = state.lng;
+  const tagMap = {
+    food:     ['"amenity"="restaurant"','"amenity"="fast_food"'],
+    cafe:     ['"amenity"="cafe"'],
+    bars:     ['"amenity"="bar"','"amenity"="pub"','"amenity"="nightclub"'],
+    hotel:    ['"tourism"="hotel"','"tourism"="hostel"','"tourism"="motel"'],
+    museum:   ['"tourism"="museum"','"tourism"="gallery"','"tourism"="attraction"'],
+    theater:  ['"amenity"="theatre"','"amenity"="cinema"'],
+    park:     ['"leisure"="park"','"leisure"="garden"'],
+    shopping: ['"shop"="mall"','"shop"="supermarket"'],
+    hospital: ['"amenity"="hospital"','"amenity"="clinic"','"amenity"="pharmacy"'],
+    gas:      ['"amenity"="fuel"'],
+    all:      ['"amenity"="restaurant"','"amenity"="cafe"','"amenity"="bar"',
+               '"tourism"="hotel"','"tourism"="museum"','"tourism"="attraction"',
+               '"amenity"="theatre"','"leisure"="park"'],
+  };
+  const tags = tagMap[catId] || tagMap.all;
+  let nodeQ = query && catId === 'all'
+    ? `node["name"~"${query}",i](around:${r},${lat},${lng});way["name"~"${query}",i](around:${r},${lat},${lng});`
+    : tags.map(t => `node[${t}](around:${r},${lat},${lng});way[${t}](around:${r},${lat},${lng});`).join('');
+  try {
+    const res = await fetch('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(`[out:json][timeout:30];(${nodeQ});out center 40;`));
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.elements || []).map(mapOsmVenue).filter(v => v.name && v.lat && v.lng)
+      .filter((v,i,a) => a.findIndex(x => x.name === v.name) === i).slice(0, 30);
+  } catch(e) { return []; }
+}
+
+function mapFsqVenue(v) {
+  const loc = v.location || {}, cat = v.categories?.[0] || {};
+  return {
+    id: v.fsq_id, name: v.name,
+    address: loc.formatted_address || ([loc.address, loc.locality].filter(Boolean).join(', ')),
+    lat: loc.lat || 0, lng: loc.lng || 0,
+    category: cat.name || 'Place', emoji: getCatEmoji(cat.name || ''),
+    distance: v.distance || 0, rating: v.rating || 0, price: v.price || 0,
+    isOpen: v.hours?.open_now ?? null, hours: v.hours?.display || '',
+    phone: v.tel || '', website: v.website || '',
+    photo: v.photos?.[0] ? v.photos[0].prefix + '300x200' + v.photos[0].suffix : '',
+    source: 'fsq',
+  };
+}
+
+function mapOsmVenue(e) {
+  const t = e.tags || {};
+  const lat = e.lat || e.center?.lat || 0;
+  const lng = e.lon || e.center?.lon || 0;
+  let cat = 'Place';
+  if (t.amenity === 'restaurant' || t.amenity === 'fast_food') cat = 'Restaurant';
+  else if (t.amenity === 'cafe') cat = 'Cafe';
+  else if (t.amenity === 'bar' || t.amenity === 'pub') cat = 'Bar';
+  else if (t.amenity === 'nightclub') cat = 'Nightclub';
+  else if (t.tourism === 'hotel' || t.tourism === 'hostel') cat = 'Hotel';
+  else if (t.tourism === 'museum') cat = 'Museum';
+  else if (t.tourism === 'gallery') cat = 'Gallery';
+  else if (t.tourism === 'attraction') cat = 'Attraction';
+  else if (t.amenity === 'theatre') cat = 'Theatre';
+  else if (t.amenity === 'cinema') cat = 'Cinema';
+  else if (t.leisure === 'park') cat = 'Park';
+  else if (t.amenity === 'hospital' || t.amenity === 'clinic') cat = 'Medical';
+  else if (t.amenity === 'pharmacy') cat = 'Pharmacy';
+  else if (t.amenity === 'fuel') cat = 'Gas Station';
+  else if (t.shop) cat = t.shop.charAt(0).toUpperCase() + t.shop.slice(1);
+  const addr = [t['addr:housenumber'], t['addr:street'], t['addr:city']].filter(Boolean).join(', ');
+  return {
+    id: 'osm_' + e.id, name: t.name || t['name:en'] || '',
+    address: addr, lat, lng, category: cat, emoji: getCatEmoji(cat),
+    distance: (lat && lng) ? calcDist(state.lat, state.lng, lat, lng) : 0,
+    rating: 0, price: 0, isOpen: null,
+    hours: t.opening_hours || '', phone: t.phone || t['contact:phone'] || '',
+    website: t.website || t['contact:website'] || '', photo: '', source: 'osm',
+  };
+}
+
+function getCatEmoji(n) {
+  n = (n || '').toLowerCase();
+  if (n.includes('restaurant') || n.includes('food') || n.includes('fast')) return '🍽️';
+  if (n.includes('cafe') || n.includes('coffee')) return '☕';
+  if (n.includes('bar') || n.includes('pub') || n.includes('night')) return '🍸';
+  if (n.includes('hotel') || n.includes('hostel') || n.includes('inn')) return '🏨';
+  if (n.includes('museum') || n.includes('gallery')) return '🏛️';
+  if (n.includes('theater') || n.includes('theatre') || n.includes('cinema')) return '🎭';
+  if (n.includes('park') || n.includes('garden')) return '🌿';
+  if (n.includes('shop') || n.includes('store') || n.includes('mall')) return '🛍️';
+  if (n.includes('hospital') || n.includes('clinic') || n.includes('medical')) return '🏥';
+  if (n.includes('pharmacy')) return '💊';
+  if (n.includes('gas') || n.includes('fuel')) return '⛽';
+  if (n.includes('attraction') || n.includes('monument')) return '🗿';
+  return '📍';
+}
+
+// ─── Render venues ───
+function renderVenues() {
+  const el = document.getElementById('venues-list');
+  if (!el) return;
+  if (!state.venues.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No places found</div><div class="empty-sub">Try a different category or broader search. We checked both Foursquare and OpenStreetMap.</div><button class="retry-btn" onclick="doSearch()">🔄 Try Again</button></div>`;
+    return;
+  }
+  el.innerHTML = `<div style="padding:6px 0 10px;font-size:12px;color:var(--text2)">${state.venues.length} places found</div>` +
+    state.venues.map(venueCardHTML).join('');
+}
+
+function venueCardHTML(v) {
+  const isFav = state.favorites.some(f => f.id === v.id);
+  const dist = v.distance > 0 ? (v.distance < 1000 ? v.distance + 'm' : (v.distance/1000).toFixed(1) + 'km') : '';
+  const openBadge = v.isOpen === true ? '<span class="badge badge-open">● Open</span>' : v.isOpen === false ? '<span class="badge badge-closed">● Closed</span>' : '';
+  const priceBadge = v.price ? `<span class="badge badge-price">${'$'.repeat(v.price)}</span>` : '';
+  const ratingHTML = v.rating ? `<span class="rating-stars">★ ${v.rating.toFixed(1)}</span>` : '';
+  const osmBadge = v.source === 'osm' ? '<span class="badge badge-osm">OSM</span>' : '';
+  const thumb = v.photo
+    ? `<img src="${v.photo}" alt="${esc(v.name)}" loading="lazy" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
+    + `<span style="display:none;font-size:28px">${v.emoji}</span>`
+    : `<span style="font-size:28px">${v.emoji}</span>`;
+  return `<div class="venue-card" onclick="openVenueDetail('${esc(v.id)}')">
+    <div class="venue-thumb">${thumb}</div>
+    <div class="venue-info">
+      <div class="venue-name">${esc(v.name)}</div>
+      <div class="venue-cat">${esc(v.category)}</div>
+      <div class="venue-addr">${esc(v.address)}</div>
+      <div class="venue-meta">
+        ${openBadge}
+        ${dist ? `<span class="badge badge-dist">📍 ${dist}</span>` : ''}
+        ${priceBadge}${ratingHTML}${osmBadge}
+      </div>
+    </div>
+    <div class="venue-actions">
+      <button class="act-btn act-fav ${isFav ? 'active' : ''}" onclick="event.stopPropagation();toggleFav('${esc(v.id)}')">${isFav ? '❤️' : '🤍'}</button>
+      ${v.lat ? `<button class="act-btn act-nav" onclick="event.stopPropagation();navigateTo(${v.lat},${v.lng},'${esc(v.name)}')">🧭</button>` : ''}
+      ${v.phone ? `<button class="act-btn act-call" onclick="event.stopPropagation();callNumber('${esc(v.phone)}')">📞</button>` : ''}
+    </div>
+  </div>`;
+}
+
+// ─── Venue detail ───
+function openVenueDetail(id) {
+  const v = state.venues.find(x => x.id === id) || state.favorites.find(x => x.id === id);
+  if (!v) return;
+  const isFav = state.favorites.some(f => f.id === v.id);
+  const dist = v.distance > 0 ? (v.distance < 1000 ? v.distance + 'm' : (v.distance/1000).toFixed(1) + 'km') : '';
+  document.getElementById('venue-sheet-content').innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:6px">
+      <span style="font-size:44px">${v.emoji}</span>
+      <div style="flex:1">
+        <div class="sheet-title">${esc(v.name)}</div>
+        <div class="sheet-cat">${esc(v.category)}</div>
+      </div>
+    </div>
+    ${v.address ? `<div class="detail-row"><div class="detail-icon">📍</div><div class="detail-text">${esc(v.address)}</div></div>` : ''}
+    ${v.hours ? `<div class="detail-row"><div class="detail-icon">🕐</div><div class="detail-text" style="color:${v.isOpen===true?'var(--green)':v.isOpen===false?'var(--red)':'var(--text2)'}">${esc(v.hours)}${v.isOpen===true?' · Open Now':v.isOpen===false?' · Closed':''}</div></div>` : ''}
+    ${v.phone ? `<div class="detail-row"><div class="detail-icon">📞</div><div class="detail-text"><a href="tel:${esc(v.phone)}">${esc(v.phone)}</a></div></div>` : ''}
+    ${v.website ? `<div class="detail-row"><div class="detail-icon">🌐</div><div class="detail-text"><a href="${esc(v.website)}" target="_blank" rel="noopener">${esc(v.website.replace(/^https?:\/\//,''))}</a></div></div>` : ''}
+    ${v.rating ? `<div class="detail-row"><div class="detail-icon">⭐</div><div class="detail-text">${v.rating.toFixed(1)} / 10</div></div>` : ''}
+    ${v.price ? `<div class="detail-row"><div class="detail-icon">💰</div><div class="detail-text">${'$'.repeat(v.price)} · ${['','Budget','Moderate','Expensive','Very Expensive'][v.price]||''}</div></div>` : ''}
+    ${dist ? `<div class="detail-row"><div class="detail-icon">📏</div><div class="detail-text">${dist} away</div></div>` : ''}
+    <div class="sheet-actions">
+      ${v.lat ? `<button class="sheet-btn sheet-btn-primary" onclick="navigateTo(${v.lat},${v.lng},'${esc(v.name)}')">🧭 Navigate</button>` : ''}
+      <button class="sheet-btn sheet-btn-outline" onclick="sharePlace('${esc(v.name)}',${v.lat||0},${v.lng||0})">🔗 Share</button>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:10px">
+      <button class="sheet-btn sheet-btn-fav ${isFav?'active':''}" id="detail-fav-btn" onclick="toggleFav('${esc(v.id)}',true)">${isFav?'❤️ Saved':'🤍 Save'}</button>
+      ${v.phone ? `<button class="sheet-btn sheet-btn-outline" onclick="callNumber('${esc(v.phone)}')">📞 Call</button>` : ''}
+    </div>`;
+  openSheet('venue-sheet');
+}
+
+// ═══════════════════════════════════════════
+//  MAP
+// ═══════════════════════════════════════════
+function initMap() {
+  if (state.map || !document.getElementById('map')) return;
+  state.map = L.map('map', {
+    zoomControl: false,
+    attributionControl: true,
+  }).setView([state.lat || 40.758, state.lng || -73.985], 15);
+  applyMapStyle(state.mapStyle);
+  buildMapStyleOpts();
+  if (state.lat) {
+    L.circleMarker([state.lat, state.lng], {
+      radius: 9, fillColor: '#3b82f6', fillOpacity: 1, color: '#fff', weight: 3
+    }).addTo(state.map);
+  }
+}
+function applyMapStyle(id) {
+  const s = MAP_STYLES.find(x => x.id === id) || MAP_STYLES[0];
+  state.mapStyle = id;
+  localStorage.setItem('mapStyle', id);
+  if (state.tileLayer) {
+    state.map.removeLayer(state.tileLayer);
+    state.tileLayer = null;
+  }
+  state.tileLayer = L.tileLayer(s.url, {
+    attribution: s.attr,
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(state.map);
+}
+function updateMapMarkers() {
+  if (!state.map) return;
+  state.markers.forEach(m => state.map.removeLayer(m));
+  state.markers = [];
+  state.venues.forEach(v => {
+    if (!v.lat || !v.lng) return;
+    const m = L.circleMarker([v.lat, v.lng], { radius: 9, fillColor: v.source === 'osm' ? '#06b6d4' : '#3b82f6', fillOpacity: 0.85, color: '#fff', weight: 2 })
+      .bindPopup(`<strong>${v.name}</strong><br><span style="font-size:11px;color:#666">${v.category}</span>`)
+      .addTo(state.map).on('click', () => openVenueDetail(v.id));
+    state.markers.push(m);
+  });
+  const counter = document.getElementById('map-counter');
+  if (counter) {
+    counter.style.display = state.venues.length > 0 ? 'block' : 'none';
+    counter.textContent = '📍 ' + state.venues.length + ' places';
+  }
+}
+function centerOnUser() {
+  if (state.lat && state.map) state.map.flyTo([state.lat, state.lng], 15, { duration: 1 });
+  else toast('📍 Location not available');
+}
+function buildMapStyleOpts() {
+  const el = document.getElementById('map-style-opts');
+  if (!el) return;
+  el.innerHTML = MAP_STYLES.map(s => `
+    <div class="style-opt ${state.mapStyle === s.id ? 'selected' : ''}" onclick="selectMapStyle('${s.id}')">
+      <span class="style-opt-icon">${s.icon}</span>
+      <div><div style="font-weight:600;font-size:14px">${s.label}</div><div style="font-size:12px;color:var(--text2)">${s.desc}</div></div>
+      <div class="style-radio"><div class="style-radio-dot"></div></div>
+    </div>`).join('');
+}
+function selectMapStyle(id) { applyMapStyle(id); buildMapStyleOpts(); closeSheet('map-style-sheet'); buildSettings(); toast('✅ Map: ' + MAP_STYLES.find(s=>s.id===id).label); }
+function toggleMapStyleSheet() { openSheet('map-style-sheet'); }
+
+// ═══════════════════════════════════════════
+//  TRANSIT
+// ═══════════════════════════════════════════
+async function loadTransit() {
+  if (!state.lat) { toast('📍 Getting location…'); return; }
+  showLoading('transit-list', 'Finding transit stations…');
+  const r = 1500, lat = state.lat, lng = state.lng;
+  const q = `[out:json][timeout:30];(node["railway"="station"](around:${r},${lat},${lng});node["railway"="subway_entrance"](around:${r},${lat},${lng});node["railway"="tram_stop"](around:${r},${lat},${lng});node["highway"="bus_stop"](around:${r},${lat},${lng});node["amenity"="bus_station"](around:${r},${lat},${lng});node["public_transport"="station"](around:${r},${lat},${lng}););out body;`;
+  try {
+    const res = await fetch('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(q));
+    const data = await res.json();
+    state.transit = (data.elements || [])
+      .filter(e => e.lat && e.lon && e.tags?.name)
+      .map(e => mapOsmTransit(e))
+      .filter((v,i,a) => a.findIndex(x => x.name === v.name) === i)
+      .sort((a,b) => a.distance - b.distance);
+    renderTransit();
+  } catch(e) {
+    document.getElementById('transit-list').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Transit unavailable</div><div class="empty-sub">Check your connection and try again.</div><button class="retry-btn" onclick="loadTransit()">🔄 Retry</button></div>`;
+  }
+}
+function mapOsmTransit(e) {
+  const t = e.tags || {};
+  let type = 'bus';
+  if (t.railway === 'station' || t.station === 'subway') type = 'subway';
+  else if (t.railway === 'halt' || t.railway === 'station') type = 'train';
+  else if (t.railway === 'tram_stop') type = 'tram';
+  const lines = [t.ref, t.route_ref, t.lines].filter(Boolean).join(';').split(';').map(l => l.trim()).filter(Boolean).slice(0, 5);
+  return {
+    id: String(e.id), name: t.name || t['name:en'] || 'Stop',
+    lat: e.lat, lng: e.lon, type,
+    lines, operator: t.operator || t.network || '',
+    accessible: t.wheelchair === 'yes',
+    distance: calcDist(state.lat, state.lng, e.lat, e.lon),
+    agencyPhone: getAgencyPhone(t.operator || ''),
+  };
+}
+function getAgencyPhone(op) {
+  op = (op || '').toLowerCase();
+  if (op.includes('mta')) return '+1-511';
+  if (op.includes('tfl')) return '+44 343 222 1234';
+  if (op.includes('sncf')) return '+33 36 35';
+  if (op.includes('db')) return '+49 1806 996633';
+  return '';
+}
+function renderTransit() {
+  const el = document.getElementById('transit-list');
+  if (!el) return;
+  let items = state.transit;
+  if (state.activeTransit !== 'all') items = items.filter(t => t.type === state.activeTransit);
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🚇</div><div class="empty-title">No stops found</div><div class="empty-sub">No ${state.activeTransit !== 'all' ? state.activeTransit : 'transit'} stops nearby. Try a different filter.</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div style="padding:6px 0 10px;font-size:12px;color:var(--text2)">${items.length} stops nearby</div>` + items.map(transitCardHTML).join('');
+}
+function transitCardHTML(t) {
+  const icons  = {subway:'🚇',train:'🚆',bus:'🚌',tram:'🚊',ferry:'⛴️'};
+  const colors = {subway:'transit-subway',train:'transit-train',bus:'transit-bus',tram:'transit-tram'};
+  const dist = t.distance < 1000 ? t.distance + 'm' : (t.distance/1000).toFixed(1) + 'km';
+  return `<div class="transit-card">
+    <div class="transit-icon-wrap ${colors[t.type]||'transit-bus'}">${icons[t.type]||'🚏'}</div>
+    <div style="flex:1;min-width:0">
+      <div class="transit-name">${esc(t.name)}</div>
+      <div class="transit-type">${t.type.charAt(0).toUpperCase()+t.type.slice(1)}</div>
+      ${t.operator ? `<div style="font-size:12px;color:var(--text2)">🏢 ${esc(t.operator)}</div>` : ''}
+      ${t.lines.length ? `<div class="lines-wrap">${t.lines.map(l=>`<span class="line-pill">${esc(l)}</span>`).join('')}</div>` : ''}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;font-size:11px;color:var(--text2)">
+        <span>📍 ${dist}</span>
+        ${t.accessible ? '<span class="accessible">♿ Accessible</span>' : ''}
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <button class="act-btn act-nav" onclick="navigateTo(${t.lat},${t.lng},'${esc(t.name)}')">🧭</button>
+      ${t.agencyPhone ? `<button class="act-btn act-call" onclick="callNumber('${esc(t.agencyPhone)}')">📞</button>` : ''}
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════
+//  FAVORITES
+// ═══════════════════════════════════════════
+function toggleFav(id, fromSheet) {
+  const v = state.venues.find(x => x.id === id) || state.favorites.find(x => x.id === id);
+  if (!v) return;
+  const idx = state.favorites.findIndex(f => f.id === id);
+  if (idx >= 0) {
+    state.favorites.splice(idx, 1);
+    toast('Removed from favorites');
+    if (state.voiceFeedback) speak('Removed from favorites');
+  } else {
+    state.favorites.push(v);
+    toast('❤️ Saved to favorites');
+    if (state.voiceFeedback) speak('Saved to favorites');
+  }
+  try { localStorage.setItem('favorites', JSON.stringify(state.favorites)); } catch(e) {}
+  renderVenues();
+  if (fromSheet) {
+    const btn = document.getElementById('detail-fav-btn');
+    const isFav = state.favorites.some(f => f.id === id);
+    if (btn) { btn.className = 'sheet-btn sheet-btn-fav' + (isFav?' active':''); btn.innerHTML = isFav ? '❤️ Saved' : '🤍 Save'; }
+  }
+}
+function renderFavorites() {
+  const el = document.getElementById('favorites-content');
+  if (!el) return;
+  if (!state.favorites.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">❤️</div><div class="empty-title">No favorites yet</div><div class="empty-sub">Tap 🤍 on any venue to save it here.</div></div>`;
+    return;
+  }
+  if (state.favListView) {
+    el.innerHTML = `<div class="content-pad">${state.favorites.map(venueCardHTML).join('')}</div>`;
+  } else {
+    el.innerHTML = `<div class="favs-grid">${state.favorites.map(v => `
+      <div class="fav-card" onclick="openVenueDetail('${esc(v.id)}')">
+        <div class="fav-icon">${v.emoji||'📍'}</div>
+        <div class="fav-name">${esc(v.name)}</div>
+        <div class="fav-cat">${esc(v.category||'')}</div>
+        <button class="fav-nav-btn" onclick="event.stopPropagation();navigateTo(${v.lat||0},${v.lng||0},'${esc(v.name)}')">🧭 Navigate</button>
+      </div>`).join('')}</div>`;
+  }
+}
+function toggleFavView() {
+  state.favListView = !state.favListView;
+  document.getElementById('fav-view-btn').textContent = state.favListView ? '⊞' : '≡';
+  renderFavorites();
+}
+
+// ═══════════════════════════════════════════
+//  BOOKINGS
+// ═══════════════════════════════════════════
+function buildBookings() {
+  const el = document.getElementById('bookings-content');
+  if (!el) return;
+  el.innerHTML = `<div style="padding:16px 16px 8px;font-size:13px;color:var(--text2)">Quick links to booking & transport services</div>
+    <div class="bookings-grid">${BOOKINGS.map(b => `
+      <a class="booking-card" href="${b.url}" target="_blank" rel="noopener noreferrer">
+        <div class="booking-logo">${b.icon}</div>
+        <div class="booking-name">${b.name}</div>
+        <div class="booking-desc">${b.desc}</div>
+      </a>`).join('')}</div>`;
+}
+
+// ═══════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════
+function buildSettings() {
+  const el = document.getElementById('settings-content');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="settings-section">
+      <div class="settings-section-title">🗺️ Map Style</div>
+      <div class="settings-card">
+        <div style="padding:8px 12px">${MAP_STYLES.map(s => `
+          <div class="style-opt ${state.mapStyle===s.id?'selected':''}" onclick="selectMapStyle('${s.id}')">
+            <span class="style-opt-icon">${s.icon}</span>
+            <div><div style="font-weight:600;font-size:14px">${s.label}</div><div style="font-size:12px;color:var(--text2)">${s.desc}</div></div>
+            <div class="style-radio"><div class="style-radio-dot"></div></div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">🎤 Voice</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <span class="settings-row-icon">🔊</span>
+          <div class="settings-row-info"><div class="settings-row-title">Voice Feedback</div><div class="settings-row-sub">Speak search results aloud</div></div>
+          <div class="toggle ${state.voiceFeedback?'on':''}" id="voice-toggle" onclick="toggleVoicePref()"></div>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">📜 Data</div>
+      <div class="settings-card">
+        <div class="settings-row" onclick="clearHistory()">
+          <span class="settings-row-icon">🗑️</span>
+          <div class="settings-row-info"><div class="settings-row-title">Clear Search History</div><div class="settings-row-sub">${state.history.length} recent searches</div></div>
+          <span style="font-size:13px;color:var(--red)">Clear</span>
+        </div>
+        <div class="settings-row" onclick="clearCache()">
+          <span class="settings-row-icon">🧹</span>
+          <div class="settings-row-info"><div class="settings-row-title">Clear Cache</div><div class="settings-row-sub">Remove cached search results</div></div>
+          <span style="font-size:13px;color:var(--red)">Clear</span>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">📱 App</div>
+      <div class="settings-card">
+        <div class="settings-row" onclick="toggleInstallPrompt()">
+          <span class="settings-row-icon">⬇️</span>
+          <div class="settings-row-info"><div class="settings-row-title">Install App</div><div class="settings-row-sub">Add to home screen — works offline</div></div>
+        </div>
+        <div class="settings-row" onclick="shareApp()">
+          <span class="settings-row-icon">🔗</span>
+          <div class="settings-row-info"><div class="settings-row-title">Share App</div><div class="settings-row-sub">Share with friends & family</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">ℹ️ About</div>
+      <div class="settings-card">
+        <div class="settings-row"><span class="settings-row-icon">🗺️</span><div class="settings-row-info"><div class="settings-row-title">Map Data</div><div class="settings-row-sub">© OpenStreetMap contributors (Free)</div></div></div>
+        <div class="settings-row"><span class="settings-row-icon">📍</span><div class="settings-row-info"><div class="settings-row-title">Venue Data</div><div class="settings-row-sub">Powered by Foursquare API</div></div></div>
+        <div class="settings-row"><span class="settings-row-icon">🚇</span><div class="settings-row-info"><div class="settings-row-title">Transit Data</div><div class="settings-row-sub">OpenStreetMap Overpass API (Free)</div></div></div>
+        <div class="settings-row"><span class="settings-row-icon">📱</span><div class="settings-row-info"><div class="settings-row-title">Version</div><div class="settings-row-sub">City Explorer PWA v2.0</div></div></div>
+      </div>
+    </div>
+    <div style="height:32px"></div>`;
+}
+function toggleVoicePref() {
+  state.voiceFeedback = !state.voiceFeedback;
+  localStorage.setItem('voiceFeedback', state.voiceFeedback);
+  buildSettings();
+}
+function clearCache() {
+  state.cache = {};
+  try { localStorage.removeItem('venueCache'); } catch(e) {}
+  toast('🧹 Cache cleared');
+  buildSettings();
+}
+function clearHistory() {
+  state.history = [];
+  try { localStorage.removeItem('searchHistory'); } catch(e) {}
+  hideHistory();
+  toast('🗑️ History cleared');
+  buildSettings();
+}
+
+// ═══════════════════════════════════════════
+//  SEARCH HISTORY
+// ═══════════════════════════════════════════
+function saveHistory(q) {
+  if (!q || q.length < 2) return;
+  state.history = [{ q, t: Date.now() }, ...state.history.filter(h => h.q !== q)].slice(0, 50);
+  try { localStorage.setItem('searchHistory', JSON.stringify(state.history)); } catch(e) {}
+}
+function showHistory() {
+  const panel = document.getElementById('history-panel');
+  const list  = document.getElementById('history-list');
+  const recent = state.history.slice(0, 6);
+  if (!recent.length || !panel) return;
+  list.innerHTML = recent.map(h => `
+    <div class="history-item">
+      <span style="font-size:16px">🕐</span>
+      <span style="flex:1;font-size:14px;cursor:pointer" onclick="searchFromHistory('${esc(h.q)}')">${esc(h.q)}</span>
+      <button class="history-del" onclick="deleteHistoryItem('${esc(h.q)}')">✕</button>
+    </div>`).join('');
+  panel.classList.add('show');
+}
+function hideHistory() { document.getElementById('history-panel')?.classList.remove('show'); }
+function searchFromHistory(q) {
+  const el = document.getElementById('search-input');
+  if (el) el.value = q;
+  hideHistory();
+  doSearch(q);
+}
+function deleteHistoryItem(q) {
+  state.history = state.history.filter(h => h.q !== q);
+  try { localStorage.setItem('searchHistory', JSON.stringify(state.history)); } catch(e) {}
+  showHistory();
+}
+
+// ═══════════════════════════════════════════
+//  VOICE
+// ═══════════════════════════════════════════
+function toggleVoice(fromHero) {
+  if (state.isListening) stopVoice();
+  else startVoice(fromHero);
+}
+function startVoice(fromHero) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('🎤 Voice not supported. Try Chrome or Edge.'); return; }
+  state.recognition = new SR();
+  state.recognition.continuous = false;
+  state.recognition.interimResults = true;
+  state.recognition.lang = navigator.language || 'en-US';
+  state.recognition.onstart = () => {
+    state.isListening = true;
+    document.getElementById('voice-fab').className = 'listening';
+    document.getElementById('voice-fab').textContent = '🔴';
+    const vb = document.getElementById('voice-search-btn');
+    const hb = document.getElementById('hero-voice-btn');
+    if (vb) vb.classList.add('listening');
+    if (hb) hb.classList.add('listening');
+    showTranscription('Listening…');
+  };
+  state.recognition.onresult = e => {
+    const text = Array.from(e.results).map(r => r[0].transcript).join('');
+    showTranscription(text);
+    if (e.results[e.results.length-1].isFinal) {
+      if (fromHero) {
+        const el = document.getElementById('hero-search-input');
+        if (el) el.value = text;
+      } else {
+        const el = document.getElementById('search-input');
+        if (el) el.value = text;
+      }
+      stopVoice();
+      parseVoiceQuery(text);
+      if (fromHero) { switchScreen('discover', null); }
+      doSearch(text);
+    }
+  };
+  state.recognition.onerror = e => { stopVoice(); if (e.error !== 'no-speech') toast('🎤 ' + e.error); };
+  state.recognition.onend = () => stopVoice();
+  try { state.recognition.start(); } catch(e) { toast('🎤 Microphone unavailable'); }
+}
+function stopVoice() {
+  state.isListening = false;
+  try { state.recognition?.abort(); } catch(e) {}
+  document.getElementById('voice-fab').className = '';
+  document.getElementById('voice-fab').textContent = '🎤';
+  document.getElementById('voice-search-btn')?.classList.remove('listening');
+  document.getElementById('hero-voice-btn')?.classList.remove('listening');
+  setTimeout(hideTranscription, 2500);
+}
+function showTranscription(t) {
+  const el = document.getElementById('transcription');
+  if (!el) return;
+  el.textContent = t;
+  el.classList.add('show');
+}
+function hideTranscription() { document.getElementById('transcription')?.classList.remove('show'); }
+function parseVoiceQuery(q) {
+  const l = q.toLowerCase();
+  if (l.includes('restaurant') || l.includes('food') || l.includes('eat')) selectCategory('food');
+  else if (l.includes('cafe') || l.includes('coffee')) selectCategory('cafe');
+  else if (l.includes('bar') || l.includes('pub') || l.includes('club')) selectCategory('bars');
+  else if (l.includes('hotel') || l.includes('stay')) selectCategory('hotel');
+  else if (l.includes('museum') || l.includes('gallery') || l.includes('art')) selectCategory('museum');
+  else if (l.includes('park') || l.includes('garden')) selectCategory('park');
+  else if (l.includes('hospital') || l.includes('doctor') || l.includes('pharmacy')) selectCategory('hospital');
+}
+
+// ═══════════════════════════════════════════
+//  TTS
+// ═══════════════════════════════════════════
+function speak(text) {
+  if (!state.voiceFeedback || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = navigator.language || 'en-US';
+  window.speechSynthesis.speak(u);
+}
+
+// ═══════════════════════════════════════════
+//  NATIVE ACTIONS
+// ═══════════════════════════════════════════
+function navigateTo(lat, lng, name) {
+  if (!lat || !lng) { toast('📍 Coordinates not available'); return; }
+  const ua = navigator.userAgent;
+  const url = /iPhone|iPad|iPod/i.test(ua)
+    ? 'maps://maps.apple.com/?daddr=' + lat + ',' + lng + '&q=' + encodeURIComponent(name)
+    : 'https://maps.google.com/?daddr=' + lat + ',' + lng + '&q=' + encodeURIComponent(name);
+  window.open(url, '_blank', 'noopener');
+}
+function callNumber(phone) {
+  if (!phone) return;
+  window.location.href = 'tel:' + phone;
+}
+function sharePlace(name, lat, lng) {
+  const url = (lat && lng) ? 'https://maps.google.com/?q=' + lat + ',' + lng : '';
+  const text = 'Check out ' + name + (url ? '!\n' + url : '!');
+  if (navigator.share) {
+    navigator.share({ title: name, text, url: url || window.location.href }).catch(() => {});
+  } else if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast('📋 Copied to clipboard'));
+  } else {
+    toast('🔗 ' + text);
+  }
+}
+function shareApp() {
+  if (navigator.share) {
+    navigator.share({ title: 'City Explorer', text: 'Discover places near you!', url: window.location.href }).catch(() => {});
+  } else if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(window.location.href).then(() => toast('📋 Link copied'));
+  }
+}
+
+// PWA Install
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
+function toggleInstallPrompt() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  } else {
+    const ua = navigator.userAgent;
+    if (/iPhone|iPad|iPod/i.test(ua)) toast('📱 Safari → Share button → Add to Home Screen');
+    else if (/Samsung/i.test(ua)) toast('📱 Browser menu → Add page to → Home screen');
+    else toast('📱 Browser menu → Install App or Add to Home Screen');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  SHEETS / TOAST / LOADING
+// ═══════════════════════════════════════════
+function openSheet(id)  { const el = document.getElementById(id); if (el) el.classList.add('open'); }
+function closeSheet(id) { const el = document.getElementById(id); if (el) el.classList.remove('open'); }
+
+let toastTimer;
+function toast(msg, dur=3200) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), dur);
+}
+
+function showLoading(id, msg) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><div class="loading-text">${msg}</div></div>`;
+}
+
+// ═══════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function calcDist(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
+  const dp = (lat2 - lat1) * Math.PI / 180, dl = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dp/2)*Math.sin(dp/2) + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)*Math.sin(dl/2);
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+}
+
+// ═══════════════════════════════════════════
+//  RESPONSIVE — re-show app on resize
+// ═══════════════════════════════════════════
+window.addEventListener('resize', () => {
+  const app = document.getElementById('app');
+  if (app && app.style.display !== 'none') {
+    app.style.display = window.innerWidth >= 768 ? 'grid' : 'flex';
+    if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
+  }
+});
+
+// ═══════════════════════════════════════════
+//  SERVICE WORKER
+// ═══════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(r => console.log('SW registered'))
+      .catch(e => console.warn('SW not registered (normal for local files)'));
+  });
+}
+</script>
+</body>
+</html>
