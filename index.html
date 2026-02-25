@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="City Explorer">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Discover venues, transit, and attractions near you">
+<title>City Explorer</title>
+<link rel="manifest" href="manifest.json">
+<!-- OSMDroid via Leaflet -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #0a0f1e;
+  --bg2: #111827;
+  --card: #1a2236;
+  --card2: #1e2d45;
+  --border: rgba(255,255,255,0.07);
+  --text: #f0f4ff;
+  --text2: #8b9fc4;
+  --text3: #4a5a7a;
+  --primary: #3b82f6;
+  --primary-glow: rgba(59,130,246,0.25);
+  --accent: #06b6d4;
+  --accent2: #8b5cf6;
+  --green: #10b981;
+  --red: #ef4444;
+  --orange: #f59e0b;
+  --gold: #fbbf24;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --nav-h: 64px;
+  --header-h: 56px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;}
+button{font-family:inherit;cursor:pointer;border:none;outline:none;}
+input{font-family:inherit;outline:none;}
+
+/* ── SPLASH ── */
+#splash{
+  position:fixed;inset:0;z-index:9999;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  transition:opacity 0.5s, visibility 0.5s;
+}
+#splash.hide{opacity:0;visibility:hidden;pointer-events:none;}
+.splash-logo{font-size:64px;animation:pulse 1.5s ease-in-out infinite;}
+.splash-title{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;background:linear-gradient(135deg,#3b82f6,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.splash-sub{color:var(--text2);font-size:14px;}
+.splash-loader{width:120px;height:3px;background:var(--card2);border-radius:3px;overflow:hidden;margin-top:8px;}
+.splash-loader-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#06b6d4);border-radius:3px;animation:load 2s ease forwards;}
+@keyframes load{from{width:0}to{width:100%}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+
+/* ── APP SHELL ── */
+#app{height:100%;display:flex;flex-direction:column;padding-top:var(--safe-top);}
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden;}
+.screen.active{display:flex;}
+
+/* ── HEADER ── */
+.header{
+  height:var(--header-h);min-height:var(--header-h);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;background:var(--bg2);
+  border-bottom:1px solid var(--border);position:relative;z-index:10;
+}
+.header-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;}
+.header-actions{display:flex;gap:4px;}
+.icon-btn{
+  width:38px;height:38px;border-radius:10px;background:transparent;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text2);font-size:18px;transition:all 0.2s;
+}
+.icon-btn:active{background:var(--card);color:var(--text);transform:scale(0.92);}
+
+/* ── BOTTOM NAV ── */
+#bottom-nav{
+  height:calc(var(--nav-h) + var(--safe-bottom));
+  min-height:calc(var(--nav-h) + var(--safe-bottom));
+  background:var(--bg2);border-top:1px solid var(--border);
+  display:flex;align-items:flex-start;padding-top:4px;
+  padding-bottom:var(--safe-bottom);
+  position:relative;z-index:100;
+}
+.nav-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 4px;cursor:pointer;transition:all 0.2s;border-radius:12px;margin:0 2px;
+  color:var(--text3);
+}
+.nav-item.active{color:var(--primary);}
+.nav-item:active{transform:scale(0.92);}
+.nav-icon{font-size:22px;line-height:1;transition:transform 0.2s;}
+.nav-item.active .nav-icon{transform:translateY(-2px);}
+.nav-label{font-size:10px;font-weight:500;white-space:nowrap;}
+
+/* ── OFFLINE BANNER ── */
+#offline-banner{
+  background:var(--orange);color:#000;text-align:center;padding:6px 16px;
+  font-size:12px;font-weight:500;display:none;align-items:center;justify-content:center;gap:6px;
+}
+#offline-banner.show{display:flex;}
+
+/* ── SCROLLABLE CONTENT ── */
+.scroll-area{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
+.scroll-area::-webkit-scrollbar{display:none;}
+
+/* ── CARDS ── */
+.card{
+  background:var(--card);border-radius:16px;border:1px solid var(--border);
+  padding:14px;margin-bottom:12px;transition:transform 0.15s,box-shadow 0.15s;
+}
+.card:active{transform:scale(0.985);}
+
+/* ── SEARCH BAR ── */
+.search-wrap{padding:12px 16px 8px;}
+.search-box{
+  display:flex;align-items:center;gap:10px;
+  background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:0 14px;height:46px;transition:border-color 0.2s;
+}
+.search-box:focus-within{border-color:var(--primary);}
+.search-box input{
+  flex:1;background:transparent;border:none;color:var(--text);font-size:15px;
+}
+.search-box input::placeholder{color:var(--text3);}
+.search-btn{color:var(--primary);font-size:20px;background:none;padding:0;line-height:1;}
+.voice-inline-btn{color:var(--text2);font-size:20px;background:none;padding:0;line-height:1;}
+.voice-inline-btn.listening{color:var(--red);animation:mic-pulse 0.8s ease infinite;}
+@keyframes mic-pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+
+/* ── CHIPS / FILTERS ── */
+.chips-row{display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto;scrollbar-width:none;}
+.chips-row::-webkit-scrollbar{display:none;}
+.chip{
+  white-space:nowrap;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:500;
+  background:var(--card);border:1px solid var(--border);color:var(--text2);
+  cursor:pointer;transition:all 0.18s;flex-shrink:0;
+}
+.chip.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+.chip:active{transform:scale(0.95);}
+
+/* ── VENUE CARD ── */
+.venue-card{
+  background:var(--card);border-radius:16px;border:1px solid var(--border);
+  padding:14px;margin-bottom:10px;display:flex;gap:12px;
+  transition:all 0.15s;cursor:pointer;
+}
+.venue-card:active{transform:scale(0.98);border-color:var(--primary);}
+.venue-thumb{
+  width:68px;height:68px;border-radius:12px;background:var(--card2);
+  display:flex;align-items:center;justify-content:center;font-size:28px;
+  flex-shrink:0;overflow:hidden;
+}
+.venue-thumb img{width:100%;height:100%;object-fit:cover;border-radius:12px;}
+.venue-info{flex:1;min-width:0;}
+.venue-name{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.venue-cat{font-size:12px;color:var(--accent);margin-bottom:3px;}
+.venue-addr{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px;}
+.venue-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:500;}
+.badge-open{background:rgba(16,185,129,0.15);color:var(--green);}
+.badge-closed{background:rgba(239,68,68,0.15);color:var(--red);}
+.badge-dist{background:var(--card2);color:var(--text2);}
+.badge-price{background:rgba(16,185,129,0.1);color:var(--green);}
+.rating-stars{display:flex;align-items:center;gap:2px;font-size:11px;color:var(--gold);}
+.venue-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
+.act-btn{
+  width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-size:16px;transition:all 0.15s;
+}
+.act-btn:active{transform:scale(0.88);}
+.act-nav{background:rgba(59,130,246,0.15);color:var(--primary);}
+.act-call{background:rgba(16,185,129,0.15);color:var(--green);}
+.act-fav{background:rgba(239,68,68,0.1);color:var(--text3);}
+.act-fav.active{background:rgba(239,68,68,0.2);color:var(--red);}
+
+/* ── TRANSIT CARD ── */
+.transit-card{
+  background:var(--card);border-radius:16px;border:1px solid var(--border);
+  padding:14px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;
+}
+.transit-icon-wrap{
+  width:52px;height:52px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;
+}
+.transit-subway{background:rgba(59,130,246,0.15);}
+.transit-train{background:rgba(6,182,212,0.15);}
+.transit-bus{background:rgba(245,158,11,0.15);}
+.transit-tram{background:rgba(16,185,129,0.15);}
+.transit-info{flex:1;min-width:0;}
+.transit-name{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:3px;}
+.transit-type{font-size:12px;color:var(--accent);margin-bottom:3px;}
+.lines-wrap{display:flex;gap:4px;flex-wrap:wrap;margin:5px 0;}
+.line-pill{
+  padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;
+  background:var(--primary);color:#fff;
+}
+.accessible{color:var(--green);font-size:11px;}
+
+/* ── MAP ── */
+#map-container{flex:1;position:relative;}
+#map{width:100%;height:100%;}
+.map-overlay-btn{
+  position:absolute;background:var(--card);border:1px solid var(--border);
+  border-radius:12px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+  font-size:20px;cursor:pointer;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,0.4);
+  transition:all 0.15s;color:var(--text);
+}
+.map-overlay-btn:active{transform:scale(0.92);}
+#map-style-btn{top:12px;right:12px;}
+#map-locate-btn{top:64px;right:12px;}
+.map-counter{
+  position:absolute;top:12px;left:12px;z-index:400;
+  background:var(--primary);border-radius:10px;padding:5px 12px;
+  font-size:12px;font-weight:600;color:#fff;
+  box-shadow:0 4px 16px var(--primary-glow);
+}
+/* Leaflet dark overrides */
+.leaflet-container{background:#1a2236!important;}
+.leaflet-tile-container{filter:brightness(0.8) saturate(0.9);}
+.leaflet-control-zoom{display:none!important;}
+.custom-marker{
+  background:var(--primary);border:2px solid #fff;border-radius:50%;
+  width:14px;height:14px;box-shadow:0 0 0 4px var(--primary-glow);
+}
+
+/* ── VOICE FAB ── */
+#voice-fab{
+  position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 16px);
+  right:16px;z-index:500;
+  width:56px;height:56px;border-radius:28px;
+  background:var(--primary);color:#fff;font-size:24px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 24px var(--primary-glow);
+  transition:all 0.2s;border:none;
+}
+#voice-fab.listening{background:var(--red);animation:fab-pulse 0.7s ease infinite;box-shadow:0 4px 24px rgba(239,68,68,0.4);}
+#voice-fab.processing{background:var(--orange);}
+#voice-fab:active{transform:scale(0.92);}
+@keyframes fab-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+
+/* ── TRANSCRIPTION BUBBLE ── */
+#transcription{
+  position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 84px);
+  right:16px;left:80px;z-index:500;
+  background:rgba(26,34,54,0.95);border:1px solid var(--border);
+  border-radius:16px 16px 4px 16px;padding:10px 14px;
+  font-size:13px;color:var(--text);backdrop-filter:blur(12px);
+  display:none;max-width:300px;margin-left:auto;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);
+}
+#transcription.show{display:block;}
+
+/* ── BOTTOM SHEET ── */
+.sheet-overlay{
+  position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.6);
+  display:none;align-items:flex-end;backdrop-filter:blur(4px);
+}
+.sheet-overlay.open{display:flex;}
+.sheet{
+  background:var(--bg2);border-radius:24px 24px 0 0;width:100%;
+  max-height:85vh;overflow-y:auto;padding:0 0 var(--safe-bottom);
+  animation:sheet-up 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes sheet-up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sheet-handle{width:36px;height:4px;background:var(--text3);border-radius:2px;margin:12px auto;}
+.sheet-content{padding:0 20px 24px;}
+.sheet-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:4px;}
+.sheet-cat{font-size:14px;color:var(--accent);margin-bottom:16px;}
+.detail-row{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;}
+.detail-icon{font-size:18px;margin-top:1px;flex-shrink:0;width:22px;text-align:center;}
+.detail-text{font-size:14px;color:var(--text2);line-height:1.5;}
+.detail-text a{color:var(--primary);text-decoration:none;}
+.sheet-actions{display:flex;gap:10px;margin-top:20px;}
+.sheet-btn{
+  flex:1;height:46px;border-radius:12px;font-size:14px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:all 0.15s;
+}
+.sheet-btn:active{transform:scale(0.96);}
+.sheet-btn-primary{background:var(--primary);color:#fff;}
+.sheet-btn-outline{background:var(--card);border:1px solid var(--border);color:var(--text);}
+.sheet-btn-fav{background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.2);}
+.sheet-btn-fav.active{background:var(--red);color:#fff;}
+
+/* ── HISTORY PANEL ── */
+#history-panel{
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  margin:0 16px 8px;overflow:hidden;display:none;
+}
+#history-panel.show{display:block;}
+.history-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);}
+.history-item{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  cursor:pointer;transition:background 0.15s;border-bottom:1px solid var(--border);
+}
+.history-item:last-child{border-bottom:none;}
+.history-item:active{background:var(--card2);}
+.history-del{color:var(--text3);font-size:14px;margin-left:auto;background:none;padding:4px;}
+
+/* ── FAVORITES ── */
+.favs-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px;}
+.fav-card{
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:14px;cursor:pointer;transition:all 0.15s;
+}
+.fav-card:active{transform:scale(0.96);}
+.fav-icon{font-size:28px;margin-bottom:8px;}
+.fav-name{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fav-cat{font-size:11px;color:var(--accent);margin-bottom:8px;}
+.fav-nav-btn{width:100%;height:32px;background:rgba(59,130,246,0.1);border-radius:8px;color:var(--primary);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px;}
+
+/* ── SETTINGS ── */
+.settings-section{padding:12px 16px 4px;}
+.settings-section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:8px;}
+.settings-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+.settings-row{
+  display:flex;align-items:center;gap:12px;padding:14px 16px;
+  border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s;
+}
+.settings-row:last-child{border-bottom:none;}
+.settings-row:active{background:var(--card2);}
+.settings-row-icon{font-size:20px;width:28px;text-align:center;}
+.settings-row-info{flex:1;}
+.settings-row-title{font-size:14px;font-weight:500;}
+.settings-row-sub{font-size:12px;color:var(--text2);margin-top:1px;}
+.toggle{
+  width:44px;height:26px;border-radius:13px;background:var(--text3);
+  position:relative;transition:background 0.2s;cursor:pointer;flex-shrink:0;
+}
+.toggle.on{background:var(--primary);}
+.toggle::after{
+  content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;
+  border-radius:10px;background:#fff;transition:left 0.2s;
+}
+.toggle.on::after{left:21px;}
+.map-style-opts{display:flex;flex-direction:column;gap:8px;padding:14px 16px;}
+.style-opt{
+  display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;
+  cursor:pointer;transition:all 0.15s;border:1px solid transparent;
+}
+.style-opt.selected{border-color:var(--primary);background:rgba(59,130,246,0.08);}
+.style-opt:active{transform:scale(0.97);}
+.style-opt-icon{font-size:24px;}
+.style-radio{width:18px;height:18px;border-radius:9px;border:2px solid var(--text3);margin-left:auto;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.style-opt.selected .style-radio{border-color:var(--primary);}
+.style-radio-dot{width:8px;height:8px;border-radius:4px;background:var(--primary);display:none;}
+.style-opt.selected .style-radio-dot{display:block;}
+
+/* ── BOOKINGS ── */
+.bookings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px;}
+.booking-card{
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:16px 12px;text-align:center;cursor:pointer;transition:all 0.15s;
+  text-decoration:none;display:block;
+}
+.booking-card:active{transform:scale(0.96);border-color:var(--primary);}
+.booking-logo{font-size:32px;margin-bottom:8px;}
+.booking-name{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);}
+.booking-desc{font-size:11px;color:var(--text2);margin-top:3px;}
+
+/* ── LOADING ── */
+.loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:16px;}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;color:var(--text2);}
+
+/* ── EMPTY STATE ── */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 32px;text-align:center;gap:12px;}
+.empty-icon{font-size:52px;}
+.empty-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;}
+.empty-sub{font-size:14px;color:var(--text2);line-height:1.6;}
+
+/* ── TOAST ── */
+#toast{
+  position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 16px);
+  left:16px;right:80px;z-index:700;
+  background:var(--card2);border:1px solid var(--border);border-radius:14px;
+  padding:12px 16px;font-size:13px;font-weight:500;
+  display:none;align-items:center;gap:8px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);backdrop-filter:blur(12px);
+  animation:toast-in 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+#toast.show{display:flex;}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── PERMISSION SCREEN ── */
+#permission-screen{
+  position:fixed;inset:0;z-index:800;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px;text-align:center;gap:16px;
+}
+#permission-screen.hide{display:none;}
+.perm-icon{font-size:64px;margin-bottom:8px;}
+.perm-title{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;}
+.perm-sub{font-size:15px;color:var(--text2);line-height:1.6;max-width:300px;}
+.perm-features{display:flex;flex-direction:column;gap:10px;margin:8px 0;width:100%;max-width:300px;}
+.perm-feat{display:flex;align-items:center;gap:12px;text-align:left;background:var(--card);border-radius:12px;padding:12px;}
+.perm-feat-icon{font-size:22px;flex-shrink:0;}
+.perm-allow-btn{
+  width:100%;max-width:300px;height:52px;border-radius:16px;
+  background:var(--primary);color:#fff;font-size:16px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;
+}
+.perm-allow-btn:active{transform:scale(0.97);}
+.perm-skip{font-size:13px;color:var(--text2);margin-top:8px;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="splash-logo">🗺️</div>
+  <div class="splash-title">City Explorer</div>
+  <div class="splash-sub">Discovering your world...</div>
+  <div class="splash-loader"><div class="splash-loader-fill"></div></div>
+</div>
+
+<!-- PERMISSION SCREEN -->
+<div id="permission-screen">
+  <div class="perm-icon">📍</div>
+  <div class="perm-title">City Explorer</div>
+  <div class="perm-sub">Discover venues, transit, and attractions near you — powered by voice search.</div>
+  <div class="perm-features">
+    <div class="perm-feat"><div class="perm-feat-icon">🎤</div><div>Voice search in your language</div></div>
+    <div class="perm-feat"><div class="perm-feat-icon">🗺️</div><div>Free OpenStreetMap — no subscription</div></div>
+    <div class="perm-feat"><div class="perm-feat-icon">🚇</div><div>Real-time transit data</div></div>
+    <div class="perm-feat"><div class="perm-feat-icon">❤️</div><div>Save your favorite places offline</div></div>
+  </div>
+  <button class="perm-allow-btn" onclick="requestPermissions()">📍 Allow Location Access</button>
+  <div class="perm-skip" onclick="skipPermissions()">Skip for now</div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <!-- Offline banner -->
+  <div id="offline-banner">📶 Offline — showing cached results</div>
+
+  <!-- DISCOVER SCREEN -->
+  <div class="screen active" id="screen-discover">
+    <div class="header">
+      <div class="header-title">🗺️ Discover</div>
+      <div class="header-actions">
+        <button class="icon-btn" onclick="toggleInstallPrompt()" title="Install App">⬇️</button>
+        <button class="icon-btn" onclick="shareApp()" title="Share">🔗</button>
+      </div>
+    </div>
+    <div class="search-wrap">
+      <div class="search-box">
+        <span>🔍</span>
+        <input type="search" id="search-input" placeholder="Search places, museums, cafes..." autocomplete="off"
+          oninput="onSearchInput()" onkeydown="if(event.key==='Enter')doSearch()">
+        <button class="voice-inline-btn" id="voice-search-btn" onclick="toggleVoice()">🎤</button>
+        <button class="search-btn" onclick="doSearch()">→</button>
+      </div>
+    </div>
+    <div id="history-panel">
+      <div class="history-header">
+        <span style="font-size:13px;font-weight:600">Recent Searches</span>
+        <button onclick="clearHistory()" style="font-size:12px;color:var(--red);background:none;cursor:pointer">Clear All</button>
+      </div>
+      <div id="history-list"></div>
+    </div>
+    <div class="chips-row" id="category-chips"></div>
+    <div class="scroll-area" id="venues-list">
+      <div class="empty-state">
+        <div class="empty-icon">🏙️</div>
+        <div class="empty-title">Find Places Near You</div>
+        <div class="empty-sub">Search restaurants, cafes, museums, theaters, parks and more — or tap 🎤 to use your voice.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP SCREEN -->
+  <div class="screen" id="screen-map">
+    <div class="header">
+      <div class="header-title">🗺️ Map</div>
+      <div class="header-actions">
+        <button class="icon-btn" onclick="centerOnUser()">📍</button>
+      </div>
+    </div>
+    <div id="map-container">
+      <div id="map"></div>
+      <button class="map-overlay-btn" id="map-style-btn" onclick="toggleMapStyleSheet()">🗂️</button>
+      <div class="map-counter" id="map-counter" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- TRANSIT SCREEN -->
+  <div class="screen" id="screen-transit">
+    <div class="header">
+      <div class="header-title">🚇 Transit</div>
+      <div class="header-actions">
+        <button class="icon-btn" onclick="loadTransit()">🔄</button>
+      </div>
+    </div>
+    <div class="chips-row" id="transit-filter-chips"></div>
+    <div class="scroll-area" id="transit-list">
+      <div class="empty-state">
+        <div class="empty-icon">🚌</div>
+        <div class="empty-title">Transit Near You</div>
+        <div class="empty-sub">Tap refresh to find subway, train, bus and tram stations nearby.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAVORITES SCREEN -->
+  <div class="screen" id="screen-favorites">
+    <div class="header">
+      <div class="header-title">❤️ Favorites</div>
+      <div class="header-actions">
+        <button class="icon-btn" id="fav-view-btn" onclick="toggleFavView()">⊞</button>
+      </div>
+    </div>
+    <div class="scroll-area">
+      <div id="favorites-content"></div>
+    </div>
+  </div>
+
+  <!-- BOOKINGS SCREEN -->
+  <div class="screen" id="screen-bookings">
+    <div class="header">
+      <div class="header-title">📋 Book</div>
+    </div>
+    <div class="scroll-area" id="bookings-content"></div>
+  </div>
+
+  <!-- SETTINGS SCREEN -->
+  <div class="screen" id="screen-settings">
+    <div class="header">
+      <div class="header-title">⚙️ Settings</div>
+    </div>
+    <div class="scroll-area" id="settings-content"></div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav id="bottom-nav">
+    <div class="nav-item active" onclick="switchScreen('discover',this)">
+      <div class="nav-icon">🔍</div><div class="nav-label">Discover</div>
+    </div>
+    <div class="nav-item" onclick="switchScreen('map',this)">
+      <div class="nav-icon">🗺️</div><div class="nav-label">Map</div>
+    </div>
+    <div class="nav-item" onclick="switchScreen('transit',this)">
+      <div class="nav-icon">🚇</div><div class="nav-label">Transit</div>
+    </div>
+    <div class="nav-item" onclick="switchScreen('favorites',this)">
+      <div class="nav-icon">❤️</div><div class="nav-label">Favorites</div>
+    </div>
+    <div class="nav-item" onclick="switchScreen('bookings',this)">
+      <div class="nav-icon">📋</div><div class="nav-label">Book</div>
+    </div>
+    <div class="nav-item" onclick="switchScreen('settings',this)">
+      <div class="nav-icon">⚙️</div><div class="nav-label">Settings</div>
+    </div>
+  </nav>
+</div>
+
+<!-- VOICE FAB -->
+<button id="voice-fab" onclick="toggleVoice()">🎤</button>
+
+<!-- TRANSCRIPTION BUBBLE -->
+<div id="transcription"></div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- VENUE DETAIL SHEET -->
+<div class="sheet-overlay" id="venue-sheet" onclick="closeSheet('venue-sheet')">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content" id="venue-sheet-content"></div>
+  </div>
+</div>
+
+<!-- MAP STYLE SHEET -->
+<div class="sheet-overlay" id="map-style-sheet" onclick="closeSheet('map-style-sheet')">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content">
+      <div class="sheet-title" style="margin-bottom:16px">Map Style</div>
+      <div id="map-style-opts"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONSTANTS & CONFIG
+// ═══════════════════════════════════════════════════════
+const FS_KEY = 'JC3Y12LOF4Q4WBYFXCTTXWRJ04JYY0TGLB5BPFFWR5WNZ1SG';
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+const CATEGORIES = [
+  {id:'all',label:'🗺️ All',fsq:''},
+  {id:'food',label:'🍽️ Food',fsq:'13000'},
+  {id:'cafe',label:'☕ Cafes',fsq:'13032'},
+  {id:'bars',label:'🍸 Bars',fsq:'13003'},
+  {id:'hotel',label:'🏨 Hotels',fsq:'19014'},
+  {id:'museum',label:'🏛️ Museums',fsq:'10027'},
+  {id:'theater',label:'🎭 Theaters',fsq:'10034'},
+  {id:'park',label:'🌿 Parks',fsq:'16032'},
+  {id:'shopping',label:'🛍️ Shopping',fsq:'17000'},
+  {id:'hospital',label:'🏥 Medical',fsq:'15014'},
+  {id:'gas',label:'⛽ Gas',fsq:'17069'},
+];
+
+const TRANSIT_TYPES = [
+  {id:'all',label:'🚏 All'},
+  {id:'subway',label:'🚇 Subway'},
+  {id:'train',label:'🚆 Train'},
+  {id:'bus',label:'🚌 Bus'},
+  {id:'tram',label:'🚊 Tram'},
+];
+
+const MAP_STYLES = [
+  {
+    id:'standard',label:'Standard',desc:'Classic OpenStreetMap',icon:'🗺️',
+    url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attr:'© OpenStreetMap contributors'
+  },
+  {
+    id:'terrain',label:'Terrain',desc:'Topographic hills & terrain',icon:'⛰️',
+    url:'https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png',
+    attr:'Map tiles by Stamen Design'
+  },
+  {
+    id:'voyager',label:'Voyager',desc:'Clean minimal light style',icon:'✈️',
+    url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attr:'© CartoDB'
+  },
+];
+
+const BOOKINGS = [
+  {name:'Uber',icon:'🚗',desc:'Ride sharing',url:'https://m.uber.com'},
+  {name:'Lyft',icon:'🚕',desc:'Ride sharing',url:'https://www.lyft.com'},
+  {name:'Booking.com',icon:'🏨',desc:'Hotels',url:'https://www.booking.com'},
+  {name:'Airbnb',icon:'🏠',desc:'Vacation rentals',url:'https://www.airbnb.com'},
+  {name:'GetYourGuide',icon:'🎟️',desc:'Tours & activities',url:'https://www.getyourguide.com'},
+  {name:'Viator',icon:'🗺️',desc:'Tours & experiences',url:'https://www.viator.com'},
+  {name:'OpenTable',icon:'🍽️',desc:'Restaurant reservations',url:'https://www.opentable.com'},
+  {name:'Hostelworld',icon:'🛏️',desc:'Hostels & budget stays',url:'https://www.hostelworld.com'},
+];
+
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let state = {
+  lat: null, lng: null,
+  venues: [],
+  transit: [],
+  favorites: JSON.parse(localStorage.getItem('favorites') || '[]'),
+  history: JSON.parse(localStorage.getItem('searchHistory') || '[]'),
+  activeCategory: 'all',
+  activeTransit: 'all',
+  mapStyle: localStorage.getItem('mapStyle') || 'standard',
+  voiceFeedback: localStorage.getItem('voiceFeedback') !== 'false',
+  favListView: false,
+  map: null,
+  tileLayer: null,
+  markers: [],
+  recognition: null,
+  isListening: false,
+  isOffline: !navigator.onLine,
+  cache: JSON.parse(localStorage.getItem('venueCache') || '{}'),
+};
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('splash').classList.add('hide');
+    const hasPerm = localStorage.getItem('locationGranted');
+    if (hasPerm) {
+      showApp();
+      getLocation();
+    } else {
+      document.getElementById('permission-screen').classList.remove('hide');
+    }
+  }, 2000);
+});
+
+window.addEventListener('online', () => { state.isOffline = false; document.getElementById('offline-banner').classList.remove('show'); });
+window.addEventListener('offline', () => { state.isOffline = true; document.getElementById('offline-banner').classList.add('show'); });
+
+function showApp() {
+  document.getElementById('permission-screen').classList.add('hide');
+  document.getElementById('app').style.display = 'flex';
+  buildCategoryChips();
+  buildTransitChips();
+  buildBookings();
+  buildSettings();
+  initMap();
+  renderFavorites();
+  if (state.isOffline) document.getElementById('offline-banner').classList.add('show');
+}
+
+function requestPermissions() {
+  if (!navigator.geolocation) { skipPermissions(); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    state.lat = pos.coords.latitude;
+    state.lng = pos.coords.longitude;
+    localStorage.setItem('locationGranted', '1');
+    showApp();
+    toast('📍 Location found!');
+  }, () => {
+    skipPermissions();
+    toast('📍 Location unavailable — using default');
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+function skipPermissions() {
+  // Default to New York if no location
+  state.lat = 40.7580; state.lng = -73.9855;
+  localStorage.setItem('locationGranted', '1');
+  showApp();
+}
+
+function getLocation() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.watchPosition(pos => {
+    state.lat = pos.coords.latitude;
+    state.lng = pos.coords.longitude;
+    if (state.map) state.map.setView([state.lat, state.lng], state.map.getZoom());
+  }, null, { enableHighAccuracy: true });
+}
+
+// ═══════════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════════
+function switchScreen(id, el) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  if (el) el.classList.add('active');
+
+  // Lazy load
+  if (id === 'map') setTimeout(() => { if(state.map) state.map.invalidateSize(); }, 50);
+  if (id === 'transit' && state.transit.length === 0) loadTransit();
+  if (id === 'favorites') renderFavorites();
+  if (id === 'settings') renderSettings();
+}
+
+// ═══════════════════════════════════════════════════════
+//  CATEGORY CHIPS
+// ═══════════════════════════════════════════════════════
+function buildCategoryChips() {
+  const el = document.getElementById('category-chips');
+  el.innerHTML = CATEGORIES.map(c => `
+    <div class="chip ${c.id === state.activeCategory ? 'active' : ''}" onclick="selectCategory('${c.id}')">${c.label}</div>
+  `).join('');
+}
+
+function selectCategory(id) {
+  state.activeCategory = id;
+  buildCategoryChips();
+  doSearch();
+}
+
+function buildTransitChips() {
+  const el = document.getElementById('transit-filter-chips');
+  el.innerHTML = TRANSIT_TYPES.map(t => `
+    <div class="chip ${t.id === state.activeTransit ? 'active' : ''}" onclick="filterTransit('${t.id}')">${t.label}</div>
+  `).join('');
+}
+
+function filterTransit(id) {
+  state.activeTransit = id;
+  buildTransitChips();
+  renderTransit();
+}
+
+// ═══════════════════════════════════════════════════════
+//  SEARCH
+// ═══════════════════════════════════════════════════════
+let searchTimeout;
+function onSearchInput() {
+  const q = document.getElementById('search-input').value.trim();
+  clearTimeout(searchTimeout);
+  if (q.length === 0) {
+    hideHistory();
+    return;
+  }
+  showHistory();
+  searchTimeout = setTimeout(() => { if(q.length >= 3) doSearch(); }, 800);
+}
+
+async function doSearch(customQuery) {
+  const query = customQuery || document.getElementById('search-input').value.trim();
+  hideHistory();
+  if (!state.lat) { toast('📍 Getting your location...'); return; }
+
+  const cat = CATEGORIES.find(c => c.id === state.activeCategory);
+  const fsqCat = cat?.fsq || '';
+  const cacheKey = `${query}_${fsqCat}_${Math.round(state.lat*100)}_${Math.round(state.lng*100)}`;
+
+  // Check cache
+  const cached = state.cache[cacheKey];
+  if (cached && (Date.now() - cached.ts < CACHE_TTL)) {
+    state.venues = cached.data;
+    renderVenues();
+    updateMapMarkers();
+    if (!customQuery) saveHistory(query);
+    return;
+  }
+
+  showLoading('venues-list', 'Searching for places...');
+
+  const params = new URLSearchParams({
+    ll: `${state.lat},${state.lng}`,
+    radius: 1000,
+    limit: 20,
+    sort: 'DISTANCE',
+    fields: 'fsq_id,name,location,categories,distance,rating,price,hours,tel,website,photos',
+  });
+  if (query) params.append('query', query);
+  if (fsqCat) params.append('categories', fsqCat);
+
+  try {
+    const res = await fetch(`https://api.foursquare.com/v3/places/search?${params}`, {
+      headers: { Authorization: FS_KEY }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    state.venues = (data.results || []).map(mapFsqVenue);
+
+    // Cache results
+    state.cache[cacheKey] = { ts: Date.now(), data: state.venues };
+    localStorage.setItem('venueCache', JSON.stringify(state.cache));
+
+    renderVenues();
+    updateMapMarkers();
+    if (!customQuery) saveHistory(query || cat?.label || 'search');
+    if (state.voiceFeedback) speak(`Found ${state.venues.length} places`);
+  } catch (e) {
+    console.error(e);
+    if (cached) {
+      state.venues = cached.data;
+      renderVenues();
+      toast('📶 Offline — showing cached results');
+    } else {
+      document.getElementById('venues-list').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">⚠️</div>
+          <div class="empty-title">Search failed</div>
+          <div class="empty-sub">${e.message}. Check your connection and try again.</div>
+        </div>`;
+    }
+  }
+}
+
+function mapFsqVenue(v) {
+  const loc = v.location || {};
+  const cat = v.categories?.[0] || {};
+  const icon = cat.icon ? `${cat.icon.prefix}64${cat.icon.suffix}` : '';
+  const emoji = getCatEmoji(cat.name || '');
+  return {
+    id: v.fsq_id,
+    name: v.name,
+    address: loc.formatted_address || `${loc.address || ''}, ${loc.locality || ''}`.trim().replace(/^,\s*/, ''),
+    lat: loc.lat || 0, lng: loc.lng || 0,
+    category: cat.name || 'Place',
+    emoji,
+    distance: v.distance || 0,
+    rating: v.rating || 0,
+    price: v.price || 0,
+    isOpen: v.hours?.open_now ?? null,
+    hours: v.hours?.display || '',
+    phone: v.tel || '',
+    website: v.website || '',
+    photo: v.photos?.[0] ? `${v.photos[0].prefix}300x200${v.photos[0].suffix}` : '',
+  };
+}
+
+function getCatEmoji(name) {
+  const n = name.toLowerCase();
+  if (n.includes('restaurant') || n.includes('food')) return '🍽️';
+  if (n.includes('cafe') || n.includes('coffee')) return '☕';
+  if (n.includes('bar') || n.includes('pub') || n.includes('night')) return '🍸';
+  if (n.includes('hotel') || n.includes('inn')) return '🏨';
+  if (n.includes('museum') || n.includes('gallery')) return '🏛️';
+  if (n.includes('theater') || n.includes('cinema')) return '🎭';
+  if (n.includes('park') || n.includes('garden')) return '🌿';
+  if (n.includes('shop') || n.includes('store') || n.includes('mall')) return '🛍️';
+  if (n.includes('hospital') || n.includes('health') || n.includes('clinic')) return '🏥';
+  if (n.includes('gas') || n.includes('fuel')) return '⛽';
+  if (n.includes('monument') || n.includes('memorial')) return '🗿';
+  return '📍';
+}
+
+function renderVenues() {
+  const el = document.getElementById('venues-list');
+  if (!state.venues.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No places found</div><div class="empty-sub">Try a different search or category.</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div style="padding:4px 16px 8px;font-size:12px;color:var(--text2)">${state.venues.length} places found</div>` +
+    state.venues.map(v => venueCardHTML(v)).join('');
+}
+
+function venueCardHTML(v) {
+  const isFav = state.favorites.some(f => f.id === v.id);
+  const dist = v.distance < 1000 ? `${v.distance}m` : `${(v.distance/1000).toFixed(1)}km`;
+  const openBadge = v.isOpen === true ? '<span class="badge badge-open">● Open</span>'
+    : v.isOpen === false ? '<span class="badge badge-closed">● Closed</span>' : '';
+  const priceBadge = v.price ? `<span class="badge badge-price">${'$'.repeat(v.price)}</span>` : '';
+  const ratingHTML = v.rating ? `<span class="rating-stars">★ ${v.rating.toFixed(1)}</span>` : '';
+  const thumbHTML = v.photo
+    ? `<img src="${v.photo}" onerror="this.parentElement.innerHTML='${v.emoji}'">`
+    : v.emoji;
+  return `
+    <div class="venue-card" onclick="openVenueDetail('${v.id}')">
+      <div class="venue-thumb">${thumbHTML}</div>
+      <div class="venue-info">
+        <div class="venue-name">${esc(v.name)}</div>
+        <div class="venue-cat">${esc(v.category)}</div>
+        <div class="venue-addr">${esc(v.address)}</div>
+        <div class="venue-meta">
+          ${openBadge}
+          <span class="badge badge-dist">📍 ${dist}</span>
+          ${priceBadge}
+          ${ratingHTML}
+        </div>
+      </div>
+      <div class="venue-actions">
+        <button class="act-btn act-fav ${isFav ? 'active' : ''}" onclick="event.stopPropagation();toggleFav('${v.id}')" title="Favorite">${isFav ? '❤️' : '🤍'}</button>
+        ${v.lat ? `<button class="act-btn act-nav" onclick="event.stopPropagation();navigateTo(${v.lat},${v.lng},'${esc(v.name)}')" title="Navigate">🧭</button>` : ''}
+        ${v.phone ? `<button class="act-btn act-call" onclick="event.stopPropagation();callNumber('${v.phone}')" title="Call">📞</button>` : ''}
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  VENUE DETAIL SHEET
+// ═══════════════════════════════════════════════════════
+function openVenueDetail(id) {
+  const v = state.venues.find(x => x.id === id);
+  if (!v) return;
+  const isFav = state.favorites.some(f => f.id === v.id);
+  const dist = v.distance < 1000 ? `${v.distance}m` : `${(v.distance/1000).toFixed(1)}km`;
+
+  document.getElementById('venue-sheet-content').innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:4px">
+      <div style="font-size:42px">${v.emoji}</div>
+      <div style="flex:1">
+        <div class="sheet-title">${esc(v.name)}</div>
+        <div class="sheet-cat">${esc(v.category)}</div>
+      </div>
+    </div>
+    ${v.address ? `<div class="detail-row"><div class="detail-icon">📍</div><div class="detail-text">${esc(v.address)}</div></div>` : ''}
+    ${v.hours ? `<div class="detail-row"><div class="detail-icon">🕐</div><div class="detail-text" style="color:${v.isOpen===true?'var(--green)':v.isOpen===false?'var(--red)':'var(--text2)'}">${esc(v.hours)}${v.isOpen===true?' · Open Now':v.isOpen===false?' · Closed':''}</div></div>` : ''}
+    ${v.phone ? `<div class="detail-row"><div class="detail-icon">📞</div><div class="detail-text"><a href="tel:${v.phone}">${v.phone}</a></div></div>` : ''}
+    ${v.website ? `<div class="detail-row"><div class="detail-icon">🌐</div><div class="detail-text"><a href="${v.website}" target="_blank">${v.website.replace(/^https?:\/\//,'')}</a></div></div>` : ''}
+    ${v.rating ? `<div class="detail-row"><div class="detail-icon">⭐</div><div class="detail-text">${v.rating.toFixed(1)} / 10</div></div>` : ''}
+    ${v.price ? `<div class="detail-row"><div class="detail-icon">💰</div><div class="detail-text">${'$'.repeat(v.price)} · ${['','Budget','Moderate','Expensive','Very Expensive'][v.price]||''}</div></div>` : ''}
+    <div class="detail-row"><div class="detail-icon">📏</div><div class="detail-text">${dist} away</div></div>
+    <div class="sheet-actions">
+      <button class="sheet-btn sheet-btn-primary" onclick="navigateTo(${v.lat},${v.lng},'${esc(v.name)}')">🧭 Navigate</button>
+      <button class="sheet-btn sheet-btn-outline" onclick="sharePlace('${esc(v.name)}',${v.lat},${v.lng})">🔗 Share</button>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:10px">
+      <button class="sheet-btn sheet-btn-fav ${isFav?'active':''}" id="detail-fav-btn" onclick="toggleFav('${v.id}',true)">
+        ${isFav?'❤️ Saved':'🤍 Save'}
+      </button>
+      ${v.phone ? `<button class="sheet-btn sheet-btn-outline" onclick="callNumber('${v.phone}')">📞 Call</button>` : ''}
+    </div>
+  `;
+  openSheet('venue-sheet');
+}
+
+// ═══════════════════════════════════════════════════════
+//  MAP
+// ═══════════════════════════════════════════════════════
+function initMap() {
+  if (state.map) return;
+  state.map = L.map('map', {
+    zoomControl: false,
+    attributionControl: true,
+  }).setView([state.lat || 40.758, state.lng || -73.985], 15);
+
+  applyMapStyle(state.mapStyle);
+  buildMapStyleOpts();
+
+  // User location marker
+  if (state.lat) {
+    L.circleMarker([state.lat, state.lng], {
+      radius: 8, fillColor: '#3b82f6', fillOpacity: 1,
+      color: '#fff', weight: 2
+    }).addTo(state.map);
+  }
+}
+
+function applyMapStyle(styleId) {
+  const s = MAP_STYLES.find(x => x.id === styleId) || MAP_STYLES[0];
+  state.mapStyle = styleId;
+  localStorage.setItem('mapStyle', styleId);
+  if (state.tileLayer) state.map.removeLayer(state.tileLayer);
+  state.tileLayer = L.tileLayer(s.url, {
+    attribution: s.attr,
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(state.map);
+}
+
+function updateMapMarkers() {
+  state.markers.forEach(m => state.map.removeLayer(m));
+  state.markers = [];
+  state.venues.forEach(v => {
+    if (!v.lat || !v.lng) return;
+    const marker = L.circleMarker([v.lat, v.lng], {
+      radius: 10, fillColor: '#3b82f6', fillOpacity: 0.85,
+      color: '#fff', weight: 2
+    }).bindPopup(`<strong>${v.name}</strong><br><span style="font-size:12px;color:#888">${v.category}</span>`)
+    .addTo(state.map)
+    .on('click', () => openVenueDetail(v.id));
+    state.markers.push(marker);
+  });
+  const counter = document.getElementById('map-counter');
+  if (state.venues.length > 0) {
+    counter.style.display = 'block';
+    counter.textContent = `📍 ${state.venues.length} places`;
+  } else {
+    counter.style.display = 'none';
+  }
+}
+
+function centerOnUser() {
+  if (state.lat && state.map) state.map.flyTo([state.lat, state.lng], 15, { duration: 1 });
+  else toast('📍 Location not available');
+}
+
+function buildMapStyleOpts() {
+  document.getElementById('map-style-opts').innerHTML = MAP_STYLES.map(s => `
+    <div class="style-opt ${state.mapStyle === s.id ? 'selected' : ''}" onclick="selectMapStyle('${s.id}')">
+      <div class="style-opt-icon">${s.icon}</div>
+      <div>
+        <div style="font-weight:600;font-size:14px">${s.label}</div>
+        <div style="font-size:12px;color:var(--text2)">${s.desc}</div>
+      </div>
+      <div class="style-radio"><div class="style-radio-dot"></div></div>
+    </div>
+  `).join('');
+}
+
+function selectMapStyle(id) {
+  applyMapStyle(id);
+  buildMapStyleOpts();
+  closeSheet('map-style-sheet');
+  toast(`✅ Map style: ${MAP_STYLES.find(s=>s.id===id).label}`);
+}
+
+function toggleMapStyleSheet() { openSheet('map-style-sheet'); }
+
+// ═══════════════════════════════════════════════════════
+//  TRANSIT
+// ═══════════════════════════════════════════════════════
+async function loadTransit() {
+  if (!state.lat) { toast('📍 Getting your location...'); return; }
+  showLoading('transit-list', 'Finding transit stations...');
+
+  const radius = 1000;
+  const q = `[out:json][timeout:25];(node["railway"="station"](around:${radius},${state.lat},${state.lng});node["railway"="subway_entrance"](around:${radius},${state.lat},${state.lng});node["railway"="tram_stop"](around:${radius},${state.lat},${state.lng});node["highway"="bus_stop"](around:${radius},${state.lat},${state.lng});node["amenity"="bus_station"](around:${radius},${state.lat},${state.lng});node["public_transport"="station"](around:${radius},${state.lat},${state.lng}););out body;`;
+
+  try {
+    const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    state.transit = (data.elements || [])
+      .filter(e => e.lat && e.lon && e.tags?.name)
+      .map(e => mapOsmTransit(e))
+      .filter((v,i,a) => a.findIndex(x=>x.name===v.name)===i)
+      .sort((a,b) => a.distance - b.distance);
+    renderTransit();
+  } catch(e) {
+    document.getElementById('transit-list').innerHTML = `
+      <div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Transit unavailable</div><div class="empty-sub">Check your connection and try again.</div></div>`;
+  }
+}
+
+function mapOsmTransit(e) {
+  const tags = e.tags || {};
+  let type = 'bus';
+  if (tags.railway === 'station' || tags.station === 'subway') type = 'subway';
+  else if (tags.railway === 'halt' || tags.railway === 'station') type = 'train';
+  else if (tags.railway === 'tram_stop') type = 'tram';
+
+  const lines = [tags.ref, tags.route_ref, tags.lines]
+    .filter(Boolean).join(';').split(';').map(l=>l.trim()).filter(Boolean).slice(0,5);
+
+  const dist = calcDist(state.lat, state.lng, e.lat, e.lon);
+  return {
+    id: e.id, name: tags.name || tags['name:en'] || 'Stop',
+    lat: e.lat, lng: e.lon, type,
+    lines, operator: tags.operator || tags.network || '',
+    accessible: tags.wheelchair === 'yes',
+    distance: dist,
+    agencyPhone: getAgencyPhone(tags.operator || ''),
+  };
+}
+
+function getAgencyPhone(op) {
+  op = op.toLowerCase();
+  if (op.includes('mta')) return '+1-511';
+  if (op.includes('tfl') || op.includes('transport for london')) return '+44 343 222 1234';
+  if (op.includes('sncf')) return '+33 36 35';
+  if (op.includes('db ') || op === 'db') return '+49 1806 996633';
+  return '';
+}
+
+function renderTransit() {
+  const el = document.getElementById('transit-list');
+  let items = state.transit;
+  if (state.activeTransit !== 'all') items = items.filter(t => t.type === state.activeTransit);
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🚇</div><div class="empty-title">No ${state.activeTransit !== 'all' ? state.activeTransit : 'transit'} stops found</div><div class="empty-sub">Try a different filter or check further away.</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div style="padding:4px 16px 8px;font-size:12px;color:var(--text2)">${items.length} stops nearby</div>` +
+    items.map(transitCardHTML).join('');
+}
+
+function transitCardHTML(t) {
+  const icons = {subway:'🚇',train:'🚆',bus:'🚌',tram:'🚊',ferry:'⛴️'};
+  const colors = {subway:'transit-subway',train:'transit-train',bus:'transit-bus',tram:'transit-tram'};
+  const dist = t.distance < 1000 ? `${t.distance}m` : `${(t.distance/1000).toFixed(1)}km`;
+  const linesHTML = t.lines.length ? `<div class="lines-wrap">${t.lines.map(l=>`<span class="line-pill">${l}</span>`).join('')}</div>` : '';
+  return `
+    <div class="transit-card">
+      <div class="transit-icon-wrap ${colors[t.type]||'transit-bus'}">${icons[t.type]||'🚏'}</div>
+      <div class="transit-info" style="flex:1;min-width:0">
+        <div class="transit-name">${esc(t.name)}</div>
+        <div class="transit-type">${t.type.charAt(0).toUpperCase()+t.type.slice(1)}</div>
+        ${t.operator ? `<div style="font-size:12px;color:var(--text2)">🏢 ${esc(t.operator)}</div>` : ''}
+        ${linesHTML}
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;font-size:11px;color:var(--text2)">
+          <span>📍 ${dist}</span>
+          ${t.accessible ? '<span class="accessible">♿ Accessible</span>' : ''}
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <button class="act-btn act-nav" onclick="navigateTo(${t.lat},${t.lng},'${esc(t.name)}')" title="Navigate">🧭</button>
+        ${t.agencyPhone ? `<button class="act-btn act-call" onclick="callNumber('${t.agencyPhone}')" title="Call agency">📞</button>` : ''}
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  FAVORITES
+// ═══════════════════════════════════════════════════════
+function toggleFav(id, fromSheet) {
+  const v = state.venues.find(x => x.id === id);
+  if (!v) return;
+  const idx = state.favorites.findIndex(f => f.id === id);
+  if (idx >= 0) {
+    state.favorites.splice(idx, 1);
+    toast('Removed from favorites');
+    if (state.voiceFeedback) speak('Removed from favorites');
+  } else {
+    state.favorites.push(v);
+    toast('❤️ Added to favorites');
+    if (state.voiceFeedback) speak('Added to favorites');
+  }
+  localStorage.setItem('favorites', JSON.stringify(state.favorites));
+  renderVenues();
+  if (fromSheet) {
+    const btn = document.getElementById('detail-fav-btn');
+    const isFav = state.favorites.some(f => f.id === id);
+    if (btn) { btn.className = `sheet-btn sheet-btn-fav ${isFav?'active':''}`; btn.innerHTML = isFav ? '❤️ Saved' : '🤍 Save'; }
+  }
+}
+
+function renderFavorites() {
+  const el = document.getElementById('favorites-content');
+  if (!state.favorites.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">❤️</div><div class="empty-title">No Favorites Yet</div><div class="empty-sub">Star venues in Discover to save them here.</div></div>`;
+    return;
+  }
+  if (state.favListView) {
+    el.innerHTML = state.favorites.map(v => venueCardHTML(v)).join('');
+  } else {
+    el.innerHTML = `<div class="favs-grid">${state.favorites.map(v => `
+      <div class="fav-card" onclick="openVenueDetail('${v.id}')">
+        <div class="fav-icon">${v.emoji}</div>
+        <div class="fav-name">${esc(v.name)}</div>
+        <div class="fav-cat">${esc(v.category)}</div>
+        <button class="fav-nav-btn" onclick="event.stopPropagation();navigateTo(${v.lat},${v.lng},'${esc(v.name)}')">🧭 Navigate</button>
+      </div>`).join('')}</div>`;
+  }
+}
+
+function toggleFavView() {
+  state.favListView = !state.favListView;
+  document.getElementById('fav-view-btn').textContent = state.favListView ? '⊞' : '≡';
+  renderFavorites();
+}
+
+// ═══════════════════════════════════════════════════════
+//  BOOKINGS
+// ═══════════════════════════════════════════════════════
+function buildBookings() {
+  document.getElementById('bookings-content').innerHTML = `
+    <div style="padding:16px 16px 8px;font-size:13px;color:var(--text2)">Quick links to booking & transport services</div>
+    <div class="bookings-grid">
+      ${BOOKINGS.map(b => `
+        <a class="booking-card" href="${b.url}" target="_blank" rel="noopener">
+          <div class="booking-logo">${b.icon}</div>
+          <div class="booking-name">${b.name}</div>
+          <div class="booking-desc">${b.desc}</div>
+        </a>`).join('')}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════════
+function buildSettings() {
+  const el = document.getElementById('settings-content');
+  el.innerHTML = `
+    <div class="settings-section">
+      <div class="settings-section-title">🗺️ Map</div>
+      <div class="settings-card">
+        <div class="map-style-opts" id="settings-map-styles">
+          ${MAP_STYLES.map(s => `
+            <div class="style-opt ${state.mapStyle === s.id ? 'selected' : ''}" onclick="selectMapStyle('${s.id}');renderSettings()">
+              <div class="style-opt-icon">${s.icon}</div>
+              <div>
+                <div style="font-weight:600;font-size:14px">${s.label}</div>
+                <div style="font-size:12px;color:var(--text2)">${s.desc}</div>
+              </div>
+              <div class="style-radio"><div class="style-radio-dot"></div></div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">🎤 Voice</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-row-icon">🔊</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Voice Feedback</div>
+            <div class="settings-row-sub">Speak results aloud</div>
+          </div>
+          <div class="toggle ${state.voiceFeedback?'on':''}" id="voice-toggle" onclick="toggleVoicePref()"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">📜 History & Cache</div>
+      <div class="settings-card">
+        <div class="settings-row" onclick="clearHistory()">
+          <div class="settings-row-icon">🗑️</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Clear Search History</div>
+            <div class="settings-row-sub">${state.history.length} searches saved</div>
+          </div>
+          <span style="font-size:13px;color:var(--red)">Clear</span>
+        </div>
+        <div class="settings-row" onclick="clearCache()">
+          <div class="settings-row-icon">🧹</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Clear Cache</div>
+            <div class="settings-row-sub">Removes cached search results</div>
+          </div>
+          <span style="font-size:13px;color:var(--red)">Clear</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">📱 App</div>
+      <div class="settings-card">
+        <div class="settings-row" onclick="toggleInstallPrompt()">
+          <div class="settings-row-icon">⬇️</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Install App</div>
+            <div class="settings-row-sub">Add to home screen for offline use</div>
+          </div>
+        </div>
+        <div class="settings-row" onclick="shareApp()">
+          <div class="settings-row-icon">🔗</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Share App</div>
+            <div class="settings-row-sub">Share with friends</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">ℹ️ About</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-row-icon">🗺️</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Map Data</div>
+            <div class="settings-row-sub">© OpenStreetMap contributors (Free)</div>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-icon">📍</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Venue Data</div>
+            <div class="settings-row-sub">Powered by Foursquare API</div>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-icon">🚇</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Transit Data</div>
+            <div class="settings-row-sub">OpenStreetMap Overpass API (Free)</div>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-icon">📱</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Version</div>
+            <div class="settings-row-sub">City Explorer PWA v1.0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="height:24px"></div>
+  `;
+}
+
+function renderSettings() { buildSettings(); }
+
+function toggleVoicePref() {
+  state.voiceFeedback = !state.voiceFeedback;
+  localStorage.setItem('voiceFeedback', state.voiceFeedback);
+  const t = document.getElementById('voice-toggle');
+  if (t) t.className = `toggle ${state.voiceFeedback?'on':''}`;
+}
+
+function clearCache() {
+  state.cache = {};
+  localStorage.removeItem('venueCache');
+  toast('🧹 Cache cleared');
+  renderSettings();
+}
+
+function clearHistory() {
+  state.history = [];
+  localStorage.removeItem('searchHistory');
+  hideHistory();
+  toast('🗑️ History cleared');
+  renderSettings();
+}
+
+// ═══════════════════════════════════════════════════════
+//  SEARCH HISTORY
+// ═══════════════════════════════════════════════════════
+function saveHistory(query) {
+  if (!query || query.length < 2) return;
+  state.history = [{ q: query, t: Date.now() }, ...state.history.filter(h => h.q !== query)].slice(0, 50);
+  localStorage.setItem('searchHistory', JSON.stringify(state.history));
+}
+
+function showHistory() {
+  const panel = document.getElementById('history-panel');
+  const list = document.getElementById('history-list');
+  const recent = state.history.slice(0, 6);
+  if (!recent.length) return;
+  list.innerHTML = recent.map(h => `
+    <div class="history-item">
+      <span style="font-size:16px">🕐</span>
+      <span style="flex:1;font-size:14px" onclick="searchFromHistory('${esc(h.q)}')">${esc(h.q)}</span>
+      <button class="history-del" onclick="deleteHistoryItem('${esc(h.q)}')">✕</button>
+    </div>`).join('');
+  panel.classList.add('show');
+}
+
+function hideHistory() { document.getElementById('history-panel').classList.remove('show'); }
+
+function searchFromHistory(q) {
+  document.getElementById('search-input').value = q;
+  hideHistory();
+  doSearch(q);
+}
+
+function deleteHistoryItem(q) {
+  state.history = state.history.filter(h => h.q !== q);
+  localStorage.setItem('searchHistory', JSON.stringify(state.history));
+  showHistory();
+}
+
+// ═══════════════════════════════════════════════════════
+//  VOICE
+// ═══════════════════════════════════════════════════════
+function toggleVoice() {
+  if (state.isListening) stopVoice();
+  else startVoice();
+}
+
+function startVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('🎤 Voice not supported on this browser. Try Chrome.'); return; }
+
+  state.recognition = new SR();
+  state.recognition.continuous = false;
+  state.recognition.interimResults = true;
+  state.recognition.lang = navigator.language || 'en-US';
+
+  state.recognition.onstart = () => {
+    state.isListening = true;
+    document.getElementById('voice-fab').className = 'listening';
+    document.getElementById('voice-fab').textContent = '🔴';
+    document.getElementById('voice-search-btn').classList.add('listening');
+    showTranscription('Listening...');
+  };
+
+  state.recognition.onresult = e => {
+    const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
+    showTranscription(transcript);
+    if (e.results[e.results.length - 1].isFinal) {
+      document.getElementById('search-input').value = transcript;
+      stopVoice();
+      parseVoiceQuery(transcript);
+      doSearch(transcript);
+    }
+  };
+
+  state.recognition.onerror = e => {
+    stopVoice();
+    if (e.error !== 'no-speech') toast(`🎤 ${e.error}`);
+  };
+
+  state.recognition.onend = () => stopVoice();
+  state.recognition.start();
+}
+
+function stopVoice() {
+  state.isListening = false;
+  state.recognition?.abort();
+  document.getElementById('voice-fab').className = '';
+  document.getElementById('voice-fab').textContent = '🎤';
+  document.getElementById('voice-search-btn').classList.remove('listening');
+  setTimeout(() => hideTranscription(), 2000);
+}
+
+function showTranscription(text) {
+  const el = document.getElementById('transcription');
+  el.textContent = text;
+  el.classList.add('show');
+}
+
+function hideTranscription() {
+  document.getElementById('transcription').classList.remove('show');
+}
+
+function parseVoiceQuery(q) {
+  const lower = q.toLowerCase();
+  // Auto-detect category from voice
+  if (lower.includes('restaurant') || lower.includes('food') || lower.includes('eat')) selectCategory('food');
+  else if (lower.includes('cafe') || lower.includes('coffee')) selectCategory('cafe');
+  else if (lower.includes('bar') || lower.includes('pub') || lower.includes('club')) selectCategory('bars');
+  else if (lower.includes('hotel') || lower.includes('stay')) selectCategory('hotel');
+  else if (lower.includes('museum') || lower.includes('gallery') || lower.includes('art')) selectCategory('museum');
+  else if (lower.includes('park') || lower.includes('garden')) selectCategory('park');
+  else if (lower.includes('hospital') || lower.includes('doctor') || lower.includes('emergency')) selectCategory('hospital');
+}
+
+// ═══════════════════════════════════════════════════════
+//  TTS
+// ═══════════════════════════════════════════════════════
+function speak(text) {
+  if (!state.voiceFeedback || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = navigator.language || 'en-US';
+  window.speechSynthesis.speak(u);
+}
+
+// ═══════════════════════════════════════════════════════
+//  NATIVE ACTIONS
+// ═══════════════════════════════════════════════════════
+function navigateTo(lat, lng, name) {
+  const url = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    ? `maps://maps.apple.com/?daddr=${lat},${lng}&q=${encodeURIComponent(name)}`
+    : `https://maps.google.com/?daddr=${lat},${lng}&q=${encodeURIComponent(name)}`;
+  window.open(url, '_blank');
+}
+
+function callNumber(phone) {
+  window.location.href = `tel:${phone}`;
+}
+
+function sharePlace(name, lat, lng) {
+  const text = `Check out ${name}!\nhttps://maps.google.com/?q=${lat},${lng}`;
+  if (navigator.share) {
+    navigator.share({ title: name, text, url: `https://maps.google.com/?q=${lat},${lng}` });
+  } else {
+    navigator.clipboard?.writeText(text).then(() => toast('📋 Copied to clipboard'));
+  }
+}
+
+function shareApp() {
+  if (navigator.share) {
+    navigator.share({ title: 'City Explorer', text: 'Discover places near you!', url: window.location.href });
+  } else {
+    navigator.clipboard?.writeText(window.location.href).then(() => toast('📋 Link copied'));
+  }
+}
+
+// PWA Install
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
+
+function toggleInstallPrompt() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  } else {
+    toast('📱 Open in browser menu → "Add to Home Screen"');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  SHEETS
+// ═══════════════════════════════════════════════════════
+function openSheet(id) { document.getElementById(id).classList.add('open'); }
+function closeSheet(id) { document.getElementById(id).classList.remove('open'); }
+
+// ═══════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════
+let toastTimer;
+function toast(msg, dur=3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), dur);
+}
+
+// ═══════════════════════════════════════════════════════
+//  LOADING
+// ═══════════════════════════════════════════════════════
+function showLoading(containerId, msg) {
+  document.getElementById(containerId).innerHTML = `
+    <div class="loading-wrap">
+      <div class="spinner"></div>
+      <div class="loading-text">${msg}</div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+function calcDist(lat1, lon1, lat2, lon2) {
+  const R=6371000, p1=lat1*Math.PI/180, p2=lat2*Math.PI/180;
+  const dp=(lat2-lat1)*Math.PI/180, dl=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)));
+}
+
+// ── SERVICE WORKER ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.warn('SW failed:', err));
+  });
+}
+</script>
+
+</body>
+</html>
